@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Elephant Toothpaste Catalyst Simulation</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+            padding-top: 70px; /* Increased for language switcher */
+            background-color: #e6eefc;
+            user-select: none;
+            min-height: 100vh;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 20px; /* Reduced margin */
+            text-align: center;
+            font-size: 1.7em; /* Slightly reduced */
+        }
+
+        .language-switcher {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(255, 255, 255, 0.95);
+            padding: 5px 8px;
+            border-radius: 5px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            z-index: 2000;
+        }
+
+        .language-switcher button {
+            background: none; border: none; padding: 5px 8px; cursor: pointer;
+            font-weight: bold; color: #007bff; border-radius: 3px; font-size:0.9em;
+        }
+        .language-switcher button.active-lang { background-color: #007bff; color: white; }
+        .language-switcher button:not(.active-lang):hover { background-color: #e9ecef; }
+
+        .simulation-area {
+            display: flex; flex-wrap: wrap; gap: 15px; /* Reduced gap */
+            align-items: flex-start; width: 100%; max-width: 1300px; /* Slightly wider */
+            background-color: #ffffff; padding: 15px; /* Reduced padding */
+            border-radius: 12px; box-shadow: 0 6px 12px rgba(0,0,0,0.15); position: relative;
+        }
+
+        .controls {
+            display: flex; flex-direction: column; gap: 12px; /* Reduced gap */
+            width: 240px; /* Reduced width */
+            padding: 12px; background-color: #f8f9fa; border-radius: 8px;
+        }
+
+        .controls label { font-weight: 600; margin-bottom: 2px; color: #34495e; font-size:0.95em; }
+        .controls select, .controls button {
+            padding: 9px 10px; border-radius: 5px; border: 1px solid #ced4da;
+            font-size: 0.9em; transition: all 0.2s ease-in-out;
+        }
+        .controls select { background-color: #fff; }
+        .controls select:focus, .controls button:focus {
+            border-color: #80bdff; box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25); outline: none;
+        }
+        .controls button { color: white; cursor: pointer; }
+        .controls button#startBtn { background-color: #28a745; }
+        .controls button#startBtn:hover { background-color: #218838; }
+        .controls button#resetBtn { background-color: #dc3545; }
+        .controls button#resetBtn:hover { background-color: #c82333; }
+        .controls button:disabled { background-color: #6c757d; cursor: not-allowed; opacity: 0.7; }
+
+        .catalyst-description {
+            margin-top: 3px; padding: 8px; background-color: #e9ecef;
+            border-radius: 4px; font-size: 0.75em; color: #495057;
+            border-left: 3px solid #17a2b8; min-height: 50px;
+        }
+
+        .reaction-column {
+            display: flex; flex-direction: column; align-items: center;
+            gap: 8px; flex-grow: 1; min-width: 260px; /* Reduced min-width */
+        }
+        
+        .reaction-container-wrapper {
+            width: 100%; max-width: 260px; height: 420px; /* Reduced dimensions */
+            display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+            position: relative; background-color: #f0f2f5; border: 1px solid #d1d9e0;
+            border-radius: 10px; overflow: hidden; align-self: center;
+        }
+
+        .flask {
+            width: 160px; height: 240px; /* Reduced */
+            background-color: rgba(192, 208, 224, 0.7); border: 2px solid #708090;
+            position: relative; clip-path: polygon(35% 0%, 65% 0%, 65% 20%, 90% 100%, 10% 100%, 35% 20%);
+            display: flex; align-items: flex-end; margin-bottom: 8px;
+        }
+
+        .foam {
+            width: 100%; height: 0; background-color: #fffacd; position: absolute; bottom: 0;
+            transition: height 0.8s ease-out, background-color 0.5s;
+            border-top-left-radius: 50% 20px; border-top-right-radius: 50% 20px; overflow: hidden;
+        }
+        
+        .bubble {
+            position: absolute; background-color: rgba(255, 255, 255, 0.7); border-radius: 50%;
+            animation: rise var(--rise-duration, 2s) infinite ease-in; opacity: 0; bottom: 5px;
+        }
+        @keyframes rise {
+            0% { transform: translateY(0); opacity: 0.8; } 25% { opacity: 0.8; }
+            100% { transform: translateY(calc(-1 * var(--rise-height, 100px))); opacity: 0; }
+        }
+
+        .draggable {
+            width: 120px; padding: 7px; background-color: #f8f9fa; /* Reduced padding */
+            border: 1px solid #adb5bd; border-radius: 5px; text-align: center; cursor: grab;
+            position: absolute; box-shadow: 0 2px 4px rgba(0,0,0,0.1); font-size: 0.8em;
+            color: #333; z-index: 100;
+        }
+        .draggable:active { cursor: grabbing; box-shadow: 0 4px 8px rgba(0,0,0,0.2); z-index: 1000; }
+
+        .info-column {
+            width: 340px; /* Adjusted width for signature */
+            display: flex; flex-direction: column; gap: 15px; /* Reduced gap */
+        }
+
+        .data-display, .questions-window, .signature-area { /* Shared style */
+            background-color: #e9ecef; padding: 12px; /* Reduced padding */
+            border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .data-display h3, .questions-window h3, .signature-area h3 {
+            margin-top: 0; margin-bottom: 10px; color: #17a2b8;
+            font-size: 1.05em; border-bottom: 1px solid #bee5eb; padding-bottom: 7px;
+        }
+        .data-display p { margin: 7px 0; font-size: 0.85em; color: #495057; }
+        .data-display p span { font-weight: bold; color: #007bff; }
+        
+        .questions-window .question { margin-bottom: 10px; }
+        .questions-window .question-text { font-weight: 500; margin-bottom: 6px; color: #34495e; font-size: 0.85em; }
+        .questions-window label {
+            display: block; margin-bottom: 3px; font-size: 0.8em; color: #495057;
+            cursor: pointer; padding: 4px 6px; border-radius: 3px; position:relative;
+            transition: background-color 0.2s;
+        }
+        .questions-window input[type="radio"] { margin-right: 5px; vertical-align: middle; }
+        .questions-window .feedback-icon { margin-left: 5px; font-weight: bold; display: inline-block; width: 10px; }
+        .questions-window label.correct { background-color: #d4edda !important; color: #155724 !important; }
+        .questions-window label.incorrect { background-color: #f8d7da !important; color: #721c24 !important; }
+
+        #checkAnswersBtn {
+            background-color: #007bff; color: white; padding: 8px;
+            font-size: 0.85em; margin-top:8px; width: 100%; border:none; border-radius:5px;
+        }
+        #checkAnswersBtn:hover { background-color: #0069d9; }
+        #quizScore { margin-top: 8px; font-weight: bold; font-size: 0.9em;}
+        
+        #reactionZone { /* ... same ... */ }
+
+        #signatureCanvas {
+            border: 1px solid #adb5bd;
+            border-radius: 4px;
+            cursor: crosshair;
+            touch-action: none; /* Prevents scrolling on canvas touch on some browsers */
+        }
+        #clearSignatureBtn {
+            background-color: #6c757d; color: white; padding: 6px 10px;
+            font-size: 0.8em; margin-top: 8px; border: none; border-radius: 5px;
+        }
+        #clearSignatureBtn:hover { background-color: #5a6268; }
+
+
+        @media (max-width: 1024px) { /* Adjust breakpoint for 3-column to 2-column stack */
+            .simulation-area { flex-direction: column; align-items: center; }
+            .controls, .reaction-column, .info-column { width: 100%; max-width: 480px; }
+        }
+         @media (max-width: 480px) {
+            body { padding-top: 60px; }
+            h1 { font-size: 1.3em; }
+            .controls select, .controls button, #checkAnswersBtn, #clearSignatureBtn { font-size: 0.85em; }
+            .draggable { width: 100px; font-size: 0.75em; }
+            .info-column { width: 100%; max-width: none; } /* Allow info column to take full width */
+            #signatureCanvas { width: 100% !important; /* Make canvas responsive by default */ }
+        }
+    </style>
+</head>
+<body>
+    <div class="language-switcher">
+        <button id="langEnBtn" data-lang="en">EN</button>
+        <button id="langEsBtn" data-lang="es">ES</button>
+    </div>
+
+    <h1 id="mainTitle">Elephant Toothpaste: Catalyst Showdown!</h1>
+
+    <div class="simulation-area">
+        <div class="controls">
+            <label for="catalystSelect" id="catalystSelectLabel">Choose Catalyst:</label>
+            <select id="catalystSelect">
+                <option value="KI">Potassium Iodide (KI)</option>
+                <option value="Yeast">Yeast</option>
+                <option value="MnO2">Manganese Dioxide (MnO₂)</option>
+            </select>
+            <div id="catalystDescriptionDisplay" class="catalyst-description"></div>
+            <button id="startBtn" data-translate-key="startReactionBtn">Start Reaction</button>
+            <button id="resetBtn" data-translate-key="resetSimulationBtn">Reset Simulation</button>
+        </div>
+
+        <div class="reaction-column">
+            <div class="reaction-container-wrapper">
+                <div class="flask">
+                    <div id="foam" class="foam"></div>
+                </div>
+                <div id="reactionZone"></div>
+            </div>
+        </div>
+
+        <div class="info-column">
+            <div id="thermometer" class="draggable">
+                <span data-translate-key="thermometerLabel">🌡️ Temp:</span> <span id="tempDisplay">20</span>°C
+            </div>
+            <div id="stopwatch" class="draggable">
+                <span data-translate-key="stopwatchLabel">⏱️ Time:</span> <span id="timeDisplay">0.0</span>s
+            </div>
+            <div class="data-display">
+                <h3 data-translate-key="reactionStatsTitle">Reaction Stats</h3>
+                <p><span data-translate-key="statsCatalystLabel">Catalyst:</span> <span id="catalystUsedDisplay">-</span></p>
+                <p><span data-translate-key="statsMaxFoamLabel">Max Foam:</span> <span id="maxFoamDisplay">0</span>%</p>
+                <p><span data-translate-key="statsPeakTempLabel">Peak Temp:</span> <span id="peakTempDisplay">20</span>°C</p>
+                <p><span data-translate-key="statsTotalTimeLabel">Total Time:</span> <span id="totalTimeDisplay">0.0</span>s</p>
+            </div>
+            <div class="questions-window">
+                <h3 data-translate-key="quizTitle">Quick Quiz</h3>
+                <div class="question" id="quizQ1">
+                    <p class="question-text" data-translate-key="q1Text"></p>
+                    <label><input type="radio" name="q1" value="A"> <span data-translate-key="q1OptA"></span><span class="feedback-icon"></span></label>
+                    <label><input type="radio" name="q1" value="B"> <span data-translate-key="q1OptB"></span><span class="feedback-icon"></span></label>
+                    <label><input type="radio" name="q1" value="C"> <span data-translate-key="q1OptC"></span><span class="feedback-icon"></span></label>
+                    <label><input type="radio" name="q1" value="D"> <span data-translate-key="q1OptD"></span><span class="feedback-icon"></span></label>
+                </div>
+                <div class="question" id="quizQ2">
+                    <p class="question-text" data-translate-key="q2Text"></p>
+                    <label><input type="radio" name="q2" value="A"> <span data-translate-key="q2OptA"></span><span class="feedback-icon"></span></label>
+                    <label><input type="radio" name="q2" value="B"> <span data-translate-key="q2OptB"></span><span class="feedback-icon"></span></label>
+                    <label><input type="radio" name="q2" value="C"> <span data-translate-key="q2OptC"></span><span class="feedback-icon"></span></label>
+                    <label><input type="radio" name="q2" value="D"> <span data-translate-key="q2OptD"></span><span class="feedback-icon"></span></label>
+                </div>
+                <div class="question" id="quizQ3">
+                    <p class="question-text" data-translate-key="q3Text"></p>
+                    <label><input type="radio" name="q3" value="A"> <span data-translate-key="q3OptA"></span><span class="feedback-icon"></span></label>
+                    <label><input type="radio" name="q3" value="B"> <span data-translate-key="q3OptB"></span><span class="feedback-icon"></span></label>
+                    <label><input type="radio" name="q3" value="C"> <span data-translate-key="q3OptC"></span><span class="feedback-icon"></span></label>
+                    <label><input type="radio" name="q3" value="D"> <span data-translate-key="q3OptD"></span><span class="feedback-icon"></span></label>
+                </div>
+                <button id="checkAnswersBtn" data-translate-key="checkAnswersBtn"></button>
+                <div id="quizScore"></div>
+            </div>
+            <div class="signature-area">
+                <h3 data-translate-key="signatureTitle">Signature</h3>
+                <canvas id="signatureCanvas" width="320" height="100"></canvas>
+                <button id="clearSignatureBtn" data-translate-key="clearSignatureBtn"></button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const langEnBtn = document.getElementById('langEnBtn');
+        const langEsBtn = document.getElementById('langEsBtn');
+        const catalystSelect = document.getElementById('catalystSelect');
+        const catalystDescriptionDisplay = document.getElementById('catalystDescriptionDisplay');
+        const startBtn = document.getElementById('startBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const foam = document.getElementById('foam');
+        const flask = document.querySelector('.flask');
+        const tempDisplay = document.getElementById('tempDisplay');
+        const timeDisplay = document.getElementById('timeDisplay');
+        const catalystUsedDisplay = document.getElementById('catalystUsedDisplay');
+        const maxFoamDisplay = document.getElementById('maxFoamDisplay');
+        const peakTempDisplay = document.getElementById('peakTempDisplay');
+        const totalTimeDisplay = document.getElementById('totalTimeDisplay');
+        const thermometer = document.getElementById('thermometer');
+        const stopwatch = document.getElementById('stopwatch');
+        const reactionZone = document.getElementById('reactionZone');
+        const simulationArea = document.querySelector('.simulation-area');
+        const checkAnswersBtn = document.getElementById('checkAnswersBtn');
+        const quizScoreDisplay = document.getElementById('quizScore');
+        const signatureCanvas = document.getElementById('signatureCanvas');
+        const clearSignatureBtn = document.getElementById('clearSignatureBtn');
+        const signatureCanvasCtx = signatureCanvas.getContext('2d');
+
+        // --- Simulation State Variables ---
+        let animationFrameId;
+        let currentTime = 0;
+        let currentBaseTemp = 20;
+        let currentReactionTemp = 20;
+        let peakReactionTemp = 20;
+        let maxFoamPercent = 0;
+        let reactionInProgress = false;
+        let thermometerInReactionZone = false;
+        let currentLanguage = 'en';
+        let isDrawingSignature = false;
+
+        // --- Translations Object ---
+        const translations = {
+            en: {
+                mainTitle: "Elephant Toothpaste: Catalyst Showdown!",
+                catalystSelectLabel: "Choose Catalyst:",
+                kiName: "Potassium Iodide (KI)", yeastName: "Yeast", mno2Name: "Manganese Dioxide (MnO₂)",
+                kiDescription: "A chemical salt. Iodide ions (I⁻) act as a powerful catalyst, rapidly decomposing hydrogen peroxide. Causes a very vigorous reaction.",
+                yeastDescription: "Contains catalase, a biological enzyme. Catalase efficiently breaks down hydrogen peroxide. Often slower but common in biological systems.",
+                mno2Description: "An inorganic compound. MnO₂ provides an active surface for hydrogen peroxide to decompose. An effective solid catalyst.",
+                startReactionBtn: "Start Reaction", resetSimulationBtn: "Reset Simulation",
+                thermometerLabel: "🌡️ Temp:", stopwatchLabel: "⏱️ Time:",
+                reactionStatsTitle: "Reaction Stats", statsCatalystLabel: "Catalyst:", statsMaxFoamLabel: "Max Foam:",
+                statsPeakTempLabel: "Peak Temp:", statsTotalTimeLabel: "Total Time:",
+                quizTitle: "Quick Quiz",
+                q1Text: "1. Which catalyst generally produced the most foam AND the highest temperature in this simulation?",
+                q1OptA: "Potassium Iodide", q1OptB: "Yeast", q1OptC: "Manganese Dioxide", q1OptD: "They were all the same",
+                q2Text: "2. What is the main role of a catalyst in a chemical reaction?",
+                q2OptA: "It gets used up in the reaction.", q2OptB: "It slows down the reaction.", q2OptC: "It speeds up the reaction without being consumed.", q2OptD: "It changes the color of the products.",
+                q3Text: "3. A reaction that causes its surroundings to heat up (like you observed with the thermometer) is called:",
+                q3OptA: "Endothermic (absorbs heat)", q3OptB: "Exothermic (releases heat)", q3OptC: "Neutrothermic (no heat change)", q3OptD: "Photothermic (releases light)",
+                checkAnswersBtn: "Check Answers", quizScoreMsg: (score, total) => `You got ${score} out of ${total} correct!`,
+                correctMark: "✓", incorrectMark: "✗",
+                signatureTitle: "Signature", clearSignatureBtn: "Clear Signature"
+            },
+            es: {
+                mainTitle: "Pasta de Elefante: ¡Duelo de Catalizadores!",
+                catalystSelectLabel: "Elige Catalizador:",
+                kiName: "Yoduro de Potasio (KI)", yeastName: "Levadura", mno2Name: "Dióxido de Manganeso (MnO₂)",
+                kiDescription: "Una sal química. Los iones yoduro (I⁻) actúan como un potente catalizador, descomponiendo rápidamente el peróxido de hidrógeno. Causa una reacción muy vigorosa.",
+                yeastDescription: "Contiene catalasa, una enzima biológica. La catalasa descompone eficientemente el peróxido de hidrógeno. Suele ser más lenta pero común en sistemas biológicos.",
+                mno2Description: "Un compuesto inorgánico. El MnO₂ proporciona una superficie activa para que el peróxido de hidrógeno se descomponga. Un catalizador sólido eficaz.",
+                startReactionBtn: "Iniciar Reacción", resetSimulationBtn: "Reiniciar Simulación",
+                thermometerLabel: "🌡️ Temp:", stopwatchLabel: "⏱️ Tiempo:",
+                reactionStatsTitle: "Estadísticas de Reacción", statsCatalystLabel: "Catalizador:", statsMaxFoamLabel: "Espuma Máx:",
+                statsPeakTempLabel: "Temp Máx:", statsTotalTimeLabel: "Tiempo Total:",
+                quizTitle: "Prueba Rápida",
+                q1Text: "1. ¿Qué catalizador generalmente produjo más espuma Y la temperatura más alta en esta simulación?",
+                q1OptA: "Yoduro de Potasio", q1OptB: "Levadura", q1OptC: "Dióxido de Manganeso", q1OptD: "Todos fueron iguales",
+                q2Text: "2. ¿Cuál es el papel principal de un catalizador en una reacción química?",
+                q2OptA: "Se consume en la reacción.", q2OptB: "Ralentiza la reacción.", q2OptC: "Acelera la reacción sin consumirse.", q2OptD: "Cambia el color de los productos.",
+                q3Text: "3. Una reacción que hace que su entorno se caliente (como observaste con el termómetro) se llama:",
+                q3OptA: "Endotérmica (absorbe calor)", q3OptB: "Exotérmica (libera calor)", q3OptC: "Neutrotérmica (sin cambio de calor)", q3OptD: "Fototérmica (libera luz)",
+                checkAnswersBtn: "Verificar Respuestas", quizScoreMsg: (score, total) => `¡Obtuviste ${score} de ${total} correctas!`,
+                correctMark: "✓", incorrectMark: "✗",
+                signatureTitle: "Firma", clearSignatureBtn: "Borrar Firma"
+            }
+        };
+        
+        const catalystDataStore = {
+            "KI":    { nameKey: "kiName", descriptionKey: "kiDescription", strength: 1.2, tempRise: 65, duration: 4000, color: '#f0e68c' },
+            "Yeast": { nameKey: "yeastName", descriptionKey: "yeastDescription", strength: 0.65, tempRise: 25, duration: 9000, color: '#f5f5dc' },
+            "MnO2":  { nameKey: "mno2Name", descriptionKey: "mno2Description", strength: 0.85, tempRise: 50, duration: 6000, color: '#d2b48c' }
+        };
+        const quizAnswers = { q1: "A", q2: "C", q3: "B" };
+
+        function applyTranslations() {
+            const tr = translations[currentLanguage];
+            document.querySelectorAll('[data-translate-key]').forEach(el => {
+                const key = el.dataset.translateKey;
+                if (tr[key]) {
+                    if (el.tagName === 'INPUT' && (el.type === 'button' || el.type === 'submit') || el.tagName === 'BUTTON') {
+                         el.textContent = tr[key]; // For <button>
+                         el.value = tr[key]; // For <input type="button">
+                    } else if (el.classList.contains('question-text') || (el.tagName === 'SPAN' && el.parentElement.tagName === 'LABEL')) {
+                        el.textContent = tr[key]; // For question text and radio button labels
+                    }
+                     else {
+                        el.textContent = tr[key]; // General case
+                    }
+                }
+            });
+            // Specific updates for elements not using data-translate-key directly or needing option updates
+            document.getElementById('mainTitle').textContent = tr.mainTitle;
+            document.getElementById('catalystSelectLabel').textContent = tr.catalystSelectLabel;
+            catalystSelect.options[0].textContent = tr.kiName;
+            catalystSelect.options[1].textContent = tr.yeastName;
+            catalystSelect.options[2].textContent = tr.mno2Name;
+            updateCatalystDescription();
+            resetQuizUI(false); // Reset quiz UI but don't clear selections if only language changes
+        }
+
+        function setLanguage(lang) {
+            currentLanguage = lang;
+            applyTranslations();
+            langEnBtn.classList.toggle('active-lang', lang === 'en');
+            langEsBtn.classList.toggle('active-lang', lang === 'es');
+        }
+
+        langEnBtn.addEventListener('click', () => setLanguage('en'));
+        langEsBtn.addEventListener('click', () => setLanguage('es'));
+
+        function updateCatalystDescription() {
+            const selectedCatalystKey = catalystSelect.value;
+            const descriptionKey = catalystDataStore[selectedCatalystKey].descriptionKey;
+            catalystDescriptionDisplay.textContent = translations[currentLanguage][descriptionKey] || "";
+        }
+        catalystSelect.addEventListener('change', updateCatalystDescription);
+
+        function makeDraggable(element, container) { /* ... same robust draggable logic ... */ } // As before
+
+        function checkThermometerPosition() { /* ... same ... */ }
+        function createBubble(currentFoamVisualHeight) { /* ... same ... */ }
+        
+        startBtn.addEventListener('click', () => { if (!reactionInProgress) startReaction(); });
+        resetBtn.addEventListener('click', resetSimulation);
+
+        function startReaction() {
+            reactionInProgress = true;
+            startBtn.disabled = true;
+            catalystSelect.disabled = true;
+            let startTime = performance.now(); // Define startTime here
+
+            const selectedCatalystKey = catalystSelect.value;
+            const catalystProps = catalystDataStore[selectedCatalystKey];
+            
+            catalystUsedDisplay.textContent = translations[currentLanguage][catalystProps.nameKey];
+            const flaskVisualHeight = flask.clientHeight; 
+            const targetFoamVisualHeight = flaskVisualHeight * catalystProps.strength; 
+            maxFoamPercent = Math.round(catalystProps.strength * 100);
+            
+            currentReactionTemp = currentBaseTemp;
+            const targetReactionTemp = currentBaseTemp + catalystProps.tempRise;
+            peakReactionTemp = currentBaseTemp;
+
+            foam.style.backgroundColor = catalystProps.color;
+            foam.style.height = '0px';
+            foam.innerHTML = '';
+            checkThermometerPosition(); 
+
+            let animationStartTime = null;
+            function animateReaction(timestamp) {
+                if (!reactionInProgress) return;
+                if (!animationStartTime) animationStartTime = timestamp;
+                const elapsedTime = timestamp - animationStartTime;
+                const progress = Math.min(elapsedTime / catalystProps.duration, 1);
+
+                const currentVisualFoamHeight = targetFoamVisualHeight * progress;
+                foam.style.height = currentVisualFoamHeight + 'px';
+                
+                if (progress > 0.05 && progress < 0.98 && Math.random() < 0.35) createBubble(currentVisualFoamHeight);
+
+                if (progress < 0.85) currentReactionTemp = currentBaseTemp + (catalystProps.tempRise * progress / 0.85);
+                else currentReactionTemp = targetReactionTemp - (catalystProps.tempRise * 0.15 * (progress - 0.85) / 0.15);
+                
+                currentReactionTemp = Math.max(currentBaseTemp, Math.min(targetReactionTemp, currentReactionTemp));
+                if (currentReactionTemp > peakReactionTemp) peakReactionTemp = currentReactionTemp;
+
+                if (thermometerInReactionZone) tempDisplay.textContent = currentReactionTemp.toFixed(0);
+
+                currentTime = (performance.now() - startTime) / 1000;
+                timeDisplay.textContent = currentTime.toFixed(1);
+
+                if (progress < 1) animationFrameId = requestAnimationFrame(animateReaction);
+                else finishReaction(catalystProps.duration / 1000);
+            }
+            animationFrameId = requestAnimationFrame(animateReaction);
+        }
+        
+        function finishReaction(totalDuration) {
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+            reactionInProgress = false;
+            currentReactionTemp = Math.max(currentBaseTemp, peakReactionTemp * 0.9); 
+            if (thermometerInReactionZone) tempDisplay.textContent = currentReactionTemp.toFixed(0);
+            peakTempDisplay.textContent = peakReactionTemp.toFixed(0);
+            maxFoamDisplay.textContent = maxFoamPercent; 
+            totalTimeDisplay.textContent = totalDuration.toFixed(1);
+            startBtn.disabled = false;
+            catalystSelect.disabled = false;
+        }
+
+        function resetSimulation() {
+            reactionInProgress = false;
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+
+            foam.style.height = '0px'; foam.style.backgroundColor = '#fffacd'; foam.innerHTML = '';
+            currentBaseTemp = 20; currentReactionTemp = currentBaseTemp; peakReactionTemp = currentBaseTemp;
+            currentTime = 0; maxFoamPercent = 0;
+
+            tempDisplay.textContent = currentBaseTemp.toFixed(0); timeDisplay.textContent = '0.0';
+            catalystUsedDisplay.textContent = '-'; maxFoamDisplay.textContent = '0';
+            peakTempDisplay.textContent = currentBaseTemp.toFixed(0); totalTimeDisplay.textContent = '0.0';
+
+            startBtn.disabled = false; catalystSelect.disabled = false; catalystSelect.value = "KI";
+            updateCatalystDescription();
+
+            const infoColumn = document.querySelector('.info-column');
+            const infoColRect = infoColumn.getBoundingClientRect();
+            const simAreaRect = simulationArea.getBoundingClientRect();
+            thermometer.style.left = (infoColRect.left - simAreaRect.left) + 'px'; thermometer.style.top = '0px';
+            stopwatch.style.left = (infoColRect.left - simAreaRect.left) + 'px';
+            stopwatch.style.top = (thermometer.offsetHeight + 10) + 'px'; // Reduced gap
+            
+            checkThermometerPosition();
+            resetQuizUI(true); // true to clear selections
+            clearSignature();
+        }
+
+        function resetQuizUI(clearSelections = true) {
+            document.querySelectorAll('.questions-window .question label').forEach(lbl => {
+                lbl.classList.remove('correct', 'incorrect');
+                const icon = lbl.querySelector('.feedback-icon');
+                if (icon) icon.textContent = '';
+            });
+            quizScoreDisplay.textContent = '';
+            if (clearSelections) {
+                document.querySelectorAll('.questions-window input[type="radio"]').forEach(radio => radio.checked = false);
+            }
+        }
+        
+        checkAnswersBtn.addEventListener('click', () => {
+            let score = 0;
+            const totalQuestions = Object.keys(quizAnswers).length;
+            const tr = translations[currentLanguage];
+
+            resetQuizUI(false); // Clear previous visual feedback but not selections
+
+            for (const qId in quizAnswers) {
+                const correctAnswerValue = quizAnswers[qId];
+                const selectedRadio = document.querySelector(`input[name="${qId}"]:checked`);
+
+                if (selectedRadio) {
+                    const selectedValue = selectedRadio.value;
+                    const selectedLabel = selectedRadio.closest('label');
+                    const selectedFeedbackIcon = selectedLabel.querySelector('.feedback-icon');
+
+                    if (selectedValue === correctAnswerValue) {
+                        score++;
+                        selectedLabel.classList.add('correct');
+                        if (selectedFeedbackIcon) selectedFeedbackIcon.textContent = tr.correctMark;
+                    } else {
+                        selectedLabel.classList.add('incorrect');
+                        if (selectedFeedbackIcon) selectedFeedbackIcon.textContent = tr.incorrectMark;
+                        const correctRadioForHighlight = document.querySelector(`input[name="${qId}"][value="${correctAnswerValue}"]`);
+                        if (correctRadioForHighlight) {
+                            correctRadioForHighlight.closest('label').classList.add('correct');
+                        }
+                    }
+                }
+            }
+            quizScoreDisplay.textContent = tr.quizScoreMsg(score, totalQuestions);
+        });
+
+        // --- Signature Pad Logic ---
+        function getEventPosition(event, canvas) {
+            const rect = canvas.getBoundingClientRect();
+            let x, y;
+            if (event.touches && event.touches.length > 0) {
+                x = event.touches[0].clientX - rect.left;
+                y = event.touches[0].clientY - rect.top;
+            } else {
+                x = event.clientX - rect.left;
+                y = event.clientY - rect.top;
+            }
+            return { x, y };
+        }
+
+        function startDrawing(event) {
+            isDrawingSignature = true;
+            const pos = getEventPosition(event, signatureCanvas);
+            signatureCanvasCtx.beginPath();
+            signatureCanvasCtx.moveTo(pos.x, pos.y);
+            if(event.type === 'touchstart') event.preventDefault(); // Prevent scroll
+        }
+
+        function drawSignature(event) {
+            if (!isDrawingSignature) return;
+            const pos = getEventPosition(event, signatureCanvas);
+            signatureCanvasCtx.lineTo(pos.x, pos.y);
+            signatureCanvasCtx.stroke();
+            if(event.type === 'touchmove') event.preventDefault(); // Prevent scroll
+        }
+
+        function stopDrawing() {
+            if (!isDrawingSignature) return;
+            isDrawingSignature = false;
+            signatureCanvasCtx.closePath();
+        }
+
+        function clearSignature() {
+            signatureCanvasCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+            signatureCanvasCtx.beginPath(); // Reset path
+        }
+
+        signatureCanvas.addEventListener('mousedown', startDrawing);
+        signatureCanvas.addEventListener('mousemove', drawSignature);
+        signatureCanvas.addEventListener('mouseup', stopDrawing);
+        signatureCanvas.addEventListener('mouseout', stopDrawing); // Stop if mouse leaves canvas
+
+        signatureCanvas.addEventListener('touchstart', startDrawing, { passive: false });
+        signatureCanvas.addEventListener('touchmove', drawSignature, { passive: false });
+        signatureCanvas.addEventListener('touchend', stopDrawing);
+        signatureCanvas.addEventListener('touchcancel', stopDrawing);
+
+
+        clearSignatureBtn.addEventListener('click', clearSignature);
+        
+        // --- Initial Setup ---
+        document.addEventListener('DOMContentLoaded', () => {
+            makeDraggable(thermometer, simulationArea);
+            makeDraggable(stopwatch, simulationArea);
+            
+            signatureCanvasCtx.lineWidth = 2;
+            signatureCanvasCtx.lineCap = 'round';
+            signatureCanvasCtx.strokeStyle = '#333333';
+
+            setLanguage(currentLanguage); // Set initial language and populate texts
+            resetSimulation(); 
+        });
+
+        // Re-add makeDraggable and other helper functions that were shortened previously
+        function makeDraggable(element, container) {
+            let isDragging = false, xOffset = 0, yOffset = 0;
+            element.addEventListener('mousedown', dragStart, false);
+            element.addEventListener('touchstart', dragStart, { passive: false });
+
+            function dragStart(e) {
+                isDragging = true;
+                element.style.cursor = 'grabbing'; element.style.zIndex = 1000;
+                let clientX, clientY;
+                if (e.type === 'touchstart') { clientX = e.touches[0].clientX; clientY = e.touches[0].clientY; e.preventDefault(); }
+                else { clientX = e.clientX; clientY = e.clientY; }
+                const rect = element.getBoundingClientRect();
+                xOffset = clientX - rect.left; yOffset = clientY - rect.top;
+                document.addEventListener('mousemove', dragging, false);
+                document.addEventListener('touchmove', dragging, { passive: false });
+                document.addEventListener('mouseup', dragEnd, false);
+                document.addEventListener('touchend', dragEnd, false);
+            }
+            function dragging(e) {
+                if (!isDragging) return; e.preventDefault();
+                let clientX, clientY;
+                if (e.type === 'touchmove') { clientX = e.touches[0].clientX; clientY = e.touches[0].clientY; }
+                else { clientX = e.clientX; clientY = e.clientY; }
+                const containerRect = container.getBoundingClientRect();
+                let newLeft = clientX - xOffset - containerRect.left;
+                let newTop = clientY - yOffset - containerRect.top;
+                if (newLeft < 0) newLeft = 0; if (newTop < 0) newTop = 0;
+                if (newLeft + element.offsetWidth > container.clientWidth) newLeft = container.clientWidth - element.offsetWidth;
+                if (newTop + element.offsetHeight > container.clientHeight) newTop = container.clientHeight - element.offsetHeight;
+                element.style.left = newLeft + 'px'; element.style.top = newTop + 'px';
+                if (element.id === 'thermometer') checkThermometerPosition();
+            }
+            function dragEnd() {
+                if (!isDragging) return; isDragging = false;
+                element.style.cursor = 'grab'; element.style.zIndex = '';
+                document.removeEventListener('mousemove', dragging, false);
+                document.removeEventListener('touchmove', dragging, false);
+                document.removeEventListener('mouseup', dragEnd, false);
+                document.removeEventListener('touchend', dragEnd, false);
+            }
+        }
+        function checkThermometerPosition() {
+            const thermRect = thermometer.getBoundingClientRect(); const zoneRect = reactionZone.getBoundingClientRect();
+            const thermCenterX = thermRect.left + thermRect.width / 2; const thermCenterY = thermRect.top + thermRect.height / 2;
+            if (thermCenterX > zoneRect.left && thermCenterX < zoneRect.right && thermCenterY > zoneRect.top && thermCenterY < zoneRect.bottom) {
+                thermometerInReactionZone = true; tempDisplay.textContent = currentReactionTemp.toFixed(0);
+            } else {
+                thermometerInReactionZone = false; tempDisplay.textContent = currentBaseTemp.toFixed(0);
+            }
+        }
+        function createBubble(currentFoamVisualHeight) {
+            const bubble = document.createElement('div'); bubble.classList.add('bubble');
+            const size = Math.random() * 10 + 3; bubble.style.width = size + 'px'; bubble.style.height = size + 'px';
+            bubble.style.left = Math.random() * (foam.clientWidth - size) + 'px';
+            const riseHeight = Math.max(15, currentFoamVisualHeight * (Math.random() * 0.25 + 0.55)); 
+            bubble.style.setProperty('--rise-height', riseHeight + 'px');
+            const riseDuration = Math.max(0.7, (riseHeight / 70) * (Math.random() * 0.7 + 0.6)); 
+            bubble.style.setProperty('--rise-duration', riseDuration + 's');
+            foam.appendChild(bubble);
+            setTimeout(() => { if (bubble.parentNode) bubble.parentNode.removeChild(bubble); }, riseDuration * 1000 + 100); 
+        }
+
+    </script>
+</body>
+</html>
