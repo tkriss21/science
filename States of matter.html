@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Particle Playground: States of Matter</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 15px;
+            background-color: #f0f4f8; /* Light grayish blue background */
+            color: #333;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        h1 {
+            color: #2c3e50; /* Dark slate blue */
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .simulation-container {
+            display: flex;
+            flex-wrap: wrap; /* Allow controls to wrap on smaller screens */
+            gap: 20px;
+            width: 100%;
+            max-width: 900px; /* Max width of the entire simulation area */
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            padding: 15px;
+            background-color: #e9ecef; /* Light grey for controls panel */
+            border-radius: 8px;
+            width: 220px; /* Fixed width for controls panel */
+        }
+
+        .controls label {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #495057; /* Darker grey text */
+        }
+
+        .controls select, .controls button {
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ced4da; /* Light grey border */
+            font-size: 0.95em;
+            background-color: #fff;
+            color: #495057;
+        }
+        
+        .controls button {
+            cursor: pointer;
+            background-color: #007bff; /* Primary blue */
+            color: white;
+            transition: background-color 0.2s;
+        }
+        .controls button:hover {
+            background-color: #0056b3; /* Darker blue on hover */
+        }
+        .controls button.temp-btn {
+            background-color: #6c757d; /* Secondary grey for temp buttons */
+        }
+        .controls button.temp-btn:hover {
+            background-color: #545b62;
+        }
+
+
+        .canvas-area {
+            flex-grow: 1; /* Canvas area takes remaining space */
+            display: flex;
+            flex-direction: column; /* Stack canvas and info display */
+            align-items: center; /* Center canvas within this area */
+            min-width: 300px; /* Minimum width for canvas area */
+        }
+
+        #particleCanvas {
+            border: 2px solid #adb5bd; /* Medium grey border for canvas */
+            border-radius: 5px;
+            background-color: #f8f9fa; /* Very light grey canvas background */
+            max-width: 100%; /* Ensure canvas is responsive */
+        }
+
+        .info-display {
+            margin-top: 15px;
+            padding: 10px 15px;
+            background-color: #e9ecef;
+            border-radius: 8px;
+            text-align: center;
+            width: 100%;
+            max-width: 450px; /* Max width for info box */
+            box-sizing: border-box;
+        }
+
+        .info-display p {
+            margin: 5px 0;
+            font-size: 1em;
+        }
+        .info-display span {
+            font-weight: bold;
+            color: #0056b3;
+        }
+        #stateDisplay {
+            font-size: 1.2em;
+            color: #dc3545; /* Red for state display - stands out */
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .simulation-container {
+                flex-direction: column; /* Stack controls and canvas area */
+                align-items: center;
+            }
+            .controls {
+                width: 100%;
+                max-width: 400px; /* Limit controls width when stacked */
+                margin-bottom: 20px;
+            }
+            .canvas-area {
+                width: 100%;
+            }
+            #particleCanvas {
+                width: 100%; /* Full width on smaller screens */
+                height: auto; /* Adjust height automatically */
+            }
+        }
+
+    </style>
+</head>
+<body>
+
+    <h1>Particle Playground: States of Matter</h1>
+
+    <div class="simulation-container">
+        <div class="controls">
+            <div>
+                <label for="substanceSelect">Substance:</label>
+                <select id="substanceSelect">
+                    <option value="water">Water</option>
+                    <option value="neon">Neon</option>
+                    <option value="metal">Generic Metal</option>
+                </select>
+            </div>
+            <div>
+                <label for="temperatureControl">Temperature:</label>
+                <div style="display: flex; gap: 10px;">
+                    <button id="decreaseTempBtn" class="temp-btn" title="Decrease Temperature">-</button>
+                    <button id="increaseTempBtn" class="temp-btn" title="Increase Temperature">+</button>
+                </div>
+            </div>
+            <button id="resetBtn">Reset Simulation</button>
+        </div>
+
+        <div class="canvas-area">
+            <canvas id="particleCanvas" width="450" height="400"></canvas>
+            <div class="info-display">
+                <p>Substance: <span id="substanceDisplay">Water</span></p>
+                <p>Temperature: <span id="tempDisplay">10</span> units</p>
+                <p>State: <span id="stateDisplay">Liquid</span></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('particleCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const substanceSelect = document.getElementById('substanceSelect');
+        const decreaseTempBtn = document.getElementById('decreaseTempBtn');
+        const increaseTempBtn = document.getElementById('increaseTempBtn');
+        const resetBtn = document.getElementById('resetBtn');
+
+        const substanceDisplay = document.getElementById('substanceDisplay');
+        const tempDisplay = document.getElementById('tempDisplay');
+        const stateDisplay = document.getElementById('stateDisplay');
+
+        let particles = [];
+        const NUM_PARTICLES = 60;
+        const PARTICLE_RADIUS = 6;
+        let temperature = 10; // Arbitrary units. Higher = more KE.
+        let currentSubstance = 'water';
+
+        const substances = {
+            water: {
+                name: "Water",
+                color: 'rgba(50, 150, 255, 0.8)',
+                mass: 1,
+                attractionStrength: 0.08,
+                maxAttractionDist: PARTICLE_RADIUS * 7,
+                solidThreshold: 3,    // Temp units for state change
+                liquidThreshold: 20,  // Temp units for state change
+                initialArrangement: 'liquid' // 'solid', 'liquid', 'gas'
+            },
+            neon: {
+                name: "Neon",
+                color: 'rgba(255, 100, 50, 0.7)',
+                mass: 0.5,
+                attractionStrength: 0.005, // Very weak attraction
+                maxAttractionDist: PARTICLE_RADIUS * 4,
+                solidThreshold: 1,
+                liquidThreshold: 4,
+                initialArrangement: 'gas'
+            },
+            metal: {
+                name: "Generic Metal",
+                color: 'rgba(150, 150, 160, 0.9)',
+                mass: 2,
+                attractionStrength: 0.15, // Strong attraction
+                maxAttractionDist: PARTICLE_RADIUS * 5,
+                latticeStrength: 0.03, // Force pulling towards lattice points in solid state
+                solidThreshold: 8,
+                liquidThreshold: 30,
+                initialArrangement: 'solid'
+            }
+        };
+
+        class Particle {
+            constructor(x, y, radius, color, mass, initialLatticeX, initialLatticeY) {
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.color = color;
+                this.mass = mass;
+                this.vx = (Math.random() - 0.5) * 0.5; // Initial small random velocity
+                this.vy = (Math.random() - 0.5) * 0.5;
+                this.initialLatticeX = initialLatticeX; // For solids to remember their spot
+                this.initialLatticeY = initialLatticeY;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.closePath();
+            }
+
+            update(deltaTime, substanceProps) {
+                // Apply temperature effect to velocity (simplified)
+                const tempFactor = Math.sqrt(temperature / 5) * 0.2; // Base speed related to temp
+                
+                // Random motion component (Brownian-like, more pronounced at higher temps)
+                this.vx += (Math.random() - 0.5) * tempFactor * 0.1;
+                this.vy += (Math.random() - 0.5) * tempFactor * 0.1;
+
+                // Dampening (to prevent runaway speeds, acts like some friction)
+                this.vx *= 0.98;
+                this.vy *= 0.98;
+                
+                // Max speed based on temperature (prevents extreme velocities)
+                const maxSpeed = tempFactor * 2;
+                const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+                if (currentSpeed > maxSpeed) {
+                    this.vx = (this.vx / currentSpeed) * maxSpeed;
+                    this.vy = (this.vy / currentSpeed) * maxSpeed;
+                }
+
+
+                this.x += this.vx * deltaTime;
+                this.y += this.vy * deltaTime;
+
+                // Wall collisions
+                if (this.x - this.radius < 0) { this.x = this.radius; this.vx *= -0.8; }
+                if (this.x + this.radius > canvas.width) { this.x = canvas.width - this.radius; this.vx *= -0.8; }
+                if (this.y - this.radius < 0) { this.y = this.radius; this.vy *= -0.8; }
+                if (this.y + this.radius > canvas.height) { this.y = canvas.height - this.radius; this.vy *= -0.8; }
+            }
+        }
+
+        function applyForces(particle1, particle2, substanceProps) {
+            const dx = particle2.x - particle1.x;
+            const dy = particle2.y - particle1.y;
+            let distance = Math.sqrt(dx * dx + dy * dy);
+            distance = Math.max(distance, 0.1); // Prevent division by zero
+
+            const minSafeDist = particle1.radius + particle2.radius;
+
+            // Repulsion force (strong if overlapping)
+            if (distance < minSafeDist) {
+                const overlap = minSafeDist - distance;
+                const forceMagnitude = overlap * 0.8; // Strong repulsion
+                const fx = (dx / distance) * forceMagnitude;
+                const fy = (dy / distance) * forceMagnitude;
+
+                particle1.vx -= fx / particle1.mass;
+                particle1.vy -= fy / particle1.mass;
+                particle2.vx += fx / particle2.mass;
+                particle2.vy += fy / particle2.mass;
+            } 
+            // Attraction force (if configured for the substance)
+            else if (substanceProps.attractionStrength > 0 && distance < substanceProps.maxAttractionDist) {
+                const forceMagnitude = substanceProps.attractionStrength * (1 - distance / substanceProps.maxAttractionDist);
+                const fx = (dx / distance) * forceMagnitude;
+                const fy = (dy / distance) * forceMagnitude;
+
+                particle1.vx += fx / particle1.mass;
+                particle1.vy += fy / particle1.mass;
+                particle2.vx -= fx / particle2.mass;
+                particle2.vy -= fy / particle2.mass;
+            }
+        }
+        
+        function applyLatticeForce(particle, substanceProps) {
+            // Only for metal in solid-like temperatures
+            if (currentSubstance === 'metal' && temperature < substanceProps.liquidThreshold && substanceProps.latticeStrength) {
+                const dx = particle.initialLatticeX - particle.x;
+                const dy = particle.initialLatticeY - particle.y;
+                const distToLattice = Math.sqrt(dx*dx + dy*dy);
+
+                if (distToLattice > 1) { // Only apply if drifted
+                    const forceMagnitude = distToLattice * substanceProps.latticeStrength;
+                    particle.vx += (dx / distToLattice) * forceMagnitude / particle.mass;
+                    particle.vy += (dy / distToLattice) * forceMagnitude / particle.mass;
+                }
+            }
+        }
+
+
+        function initParticles() {
+            particles = [];
+            const substanceProps = substances[currentSubstance];
+            const arrangement = substanceProps.initialArrangement;
+            
+            let cols = Math.floor(Math.sqrt(NUM_PARTICLES * (canvas.height / canvas.width)));
+            let rows = Math.ceil(NUM_PARTICLES / cols);
+            if (currentSubstance === 'metal' && arrangement === 'solid') { // More structured for metal solid
+                 cols = Math.floor(canvas.width / (PARTICLE_RADIUS * 4));
+                 rows = Math.ceil(NUM_PARTICLES / cols);
+            }
+
+
+            const spacingX = canvas.width / (cols + 1);
+            const spacingY = canvas.height / (rows + 1);
+            
+            let particleCount = 0;
+
+            for (let i = 0; i < rows && particleCount < NUM_PARTICLES; i++) {
+                for (let j = 0; j < cols && particleCount < NUM_PARTICLES; j++) {
+                    let x, y;
+                    let latticeX, latticeY;
+
+                    if (arrangement === 'solid') {
+                        x = (j + 1) * spacingX + (Math.random() - 0.5) * 2; // Slight jitter
+                        y = (i + 1) * spacingY + (Math.random() - 0.5) * 2;
+                        latticeX = x;
+                        latticeY = y;
+                    } else if (arrangement === 'liquid') {
+                        x = Math.random() * (canvas.width - PARTICLE_RADIUS * 4) + PARTICLE_RADIUS * 2;
+                        y = Math.random() * (canvas.height - PARTICLE_RADIUS * 4) + PARTICLE_RADIUS * 2;
+                        // Try to avoid overlaps initially for liquids
+                        let attempts = 0;
+                        while(particles.some(p => Math.sqrt((p.x-x)**2 + (p.y-y)**2) < PARTICLE_RADIUS*2.5) && attempts < 50) {
+                           x = Math.random() * (canvas.width - PARTICLE_RADIUS * 4) + PARTICLE_RADIUS * 2;
+                           y = Math.random() * (canvas.height - PARTICLE_RADIUS * 4) + PARTICLE_RADIUS * 2;
+                           attempts++;
+                        }
+                        latticeX = x; // Not strictly lattice, but an origin point
+                        latticeY = y;
+
+                    } else { // Gas
+                        x = Math.random() * (canvas.width - PARTICLE_RADIUS * 2) + PARTICLE_RADIUS;
+                        y = Math.random() * (canvas.height - PARTICLE_RADIUS * 2) + PARTICLE_RADIUS;
+                        latticeX = x;
+                        latticeY = y;
+                    }
+                    
+                    particles.push(new Particle(x, y, PARTICLE_RADIUS, substanceProps.color, substanceProps.mass, latticeX, latticeY));
+                    particleCount++;
+                }
+            }
+        }
+
+        function updateDisplays() {
+            const substanceProps = substances[currentSubstance];
+            substanceDisplay.textContent = substanceProps.name;
+            tempDisplay.textContent = temperature.toFixed(1);
+
+            let state = "Gas"; // Default to Gas
+            if (temperature < substanceProps.solidThreshold) {
+                state = "Solid";
+            } else if (temperature < substanceProps.liquidThreshold) {
+                state = "Liquid";
+            }
+            stateDisplay.textContent = state;
+        }
+
+        let lastTime = 0;
+        function animationLoop(timestamp) {
+            const deltaTime = (timestamp - lastTime) / 16.67; // Normalize to ~60 FPS, so 1 delta = 1/60th second
+            lastTime = timestamp;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const substanceProps = substances[currentSubstance];
+
+            for (let i = 0; i < particles.length; i++) {
+                for (let j = i + 1; j < particles.length; j++) {
+                    applyForces(particles[i], particles[j], substanceProps);
+                }
+                if (currentSubstance === 'metal') { // Lattice only for metal
+                     applyLatticeForce(particles[i], substanceProps);
+                }
+            }
+            
+            particles.forEach(particle => {
+                particle.update(Math.min(deltaTime, 3), substanceProps); // Cap deltaTime to prevent explosions
+                particle.draw();
+            });
+
+            updateDisplays();
+            requestAnimationFrame(animationLoop);
+        }
+
+        // Event Listeners
+        substanceSelect.addEventListener('change', (e) => {
+            currentSubstance = e.target.value;
+            // Reset temperature to a reasonable starting point for the new substance
+            const props = substances[currentSubstance];
+            if (props.initialArrangement === 'solid') temperature = (props.solidThreshold + props.liquidThreshold) / 4;
+            else if (props.initialArrangement === 'liquid') temperature = (props.solidThreshold + props.liquidThreshold) / 2;
+            else temperature = props.liquidThreshold * 1.5; // Start as gas if default is gas
+            temperature = Math.max(0.1, temperature); // Ensure temp is not zero or negative
+            
+            initParticles();
+            updateDisplays();
+        });
+
+        decreaseTempBtn.addEventListener('click', () => {
+            temperature = Math.max(0.1, temperature - 1); // Min temp 0.1
+            updateDisplays();
+        });
+
+        increaseTempBtn.addEventListener('click', () => {
+            temperature = Math.min(100, temperature + 1); // Max temp 100 (arbitrary)
+            updateDisplays();
+        });
+
+        resetBtn.addEventListener('click', () => {
+            currentSubstance = substanceSelect.value; // Keep selected substance or reset to default
+            const props = substances[currentSubstance];
+            if (props.initialArrangement === 'solid') temperature = (props.solidThreshold + props.liquidThreshold) / 4;
+            else if (props.initialArrangement === 'liquid') temperature = (props.solidThreshold + props.liquidThreshold) / 2;
+            else temperature = props.liquidThreshold * 1.5;
+            temperature = Math.max(0.1, temperature);
+
+            initParticles();
+            updateDisplays();
+        });
+
+        // Initial Setup
+        currentSubstance = substanceSelect.value;
+        const initialProps = substances[currentSubstance];
+        if (initialProps.initialArrangement === 'solid') temperature = (initialProps.solidThreshold + initialProps.liquidThreshold) / 4;
+        else if (initialProps.initialArrangement === 'liquid') temperature = (initialProps.solidThreshold + initialProps.liquidThreshold) / 2;
+        else temperature = initialProps.liquidThreshold * 1.5;
+        temperature = Math.max(0.1, temperature);
+
+
+        initParticles();
+        updateDisplays();
+        requestAnimationFrame(animationLoop);
+
+    </script>
+</body>
+</html>

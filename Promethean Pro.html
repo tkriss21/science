@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estrella - Final Polish v2</title>
+    <style>
+        :root {
+             --table-border-style: 1px solid #557;
+             --table-font-size: 1em;
+             --table-text-color: #eee;
+             --table-alt-row-bg: transparent;
+        }
+        body { margin: 0; height: 100vh; width: 100vw; background: linear-gradient(to bottom, #000020, #101040); overflow: hidden; font-family: sans-serif; color: white; position: relative; cursor: none; user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; }
+        #scene { position: absolute; left: 50%; top: 50%; width: 100vw; height: 100vh; transform-origin: center center; display: flex; flex-direction: column; justify-content: center; align-items: center; pointer-events: none; }
+        #scene > * { pointer-events: auto; }
+        h1#estrellaHeading { font-size: 6rem; color: #ffffff; text-shadow: 0 0 10px #ffffff, 0 0 20px #ffffff, 0 0 30px #ffd700; z-index: 10; position: relative; text-align: center; transition: font-size 0.2s ease-out, display 0.3s ease, opacity 0.3s ease; margin-bottom: 15px; }
+        #customCursor { position: fixed; width: 20px; height: 20px; z-index: 350; pointer-events: none; transform: translate(-50%, -50%); border-radius: 50%; background-color: #fff; opacity: 1; transition: opacity 0.2s ease, width 0.1s ease, height 0.1s ease, box-shadow 0.2s ease, background-color 0.2s ease, border-color 0.2s ease; }
+        .visual-star { position: absolute; width: 15px; height: 15px; pointer-events: none; opacity: 0.9; animation-iteration-count: infinite; animation-timing-function: linear; transform-origin: center center; transition: width 0.2s ease, height 0.2s ease, box-shadow 0.2s ease, background-color 0.3s ease, border-color 0.3s ease, opacity 0.1s linear; box-shadow: none; }
+        .shape-circle { border-radius: 50%; } .shape-square { border-radius: 0; } .shape-star { background-color: #fff; clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); } .shape-ring { background-color: transparent !important; border: 2px solid #fff; border-radius: 50%; }
+        @keyframes pulse { 0%, 100% { transform: scale(0.6); opacity: 0.5; } 50% { transform: scale(1.5); opacity: 1; } } @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } } @keyframes fade { 0%, 100% { opacity: 0.1; } 50% { opacity: 1.0; } } @keyframes drift { 0% { transform: translate(0px, 0px) rotate(0deg); } 25% { transform: translate(10px, 6px) rotate(18deg); } 50% { transform: translate(-6px, 12px) rotate(-12deg); } 75% { transform: translate(-12px, -5px) rotate(10deg); } 100% { transform: translate(0px, 0px) rotate(0deg); } }
+        .anim-pulse { animation-name: pulse; } .anim-spin { animation-name: spin; } .anim-fade { animation-name: fade; } .anim-drift { animation-name: drift; }
+        .mouse-trail-particle { position: fixed; opacity: 0.8; pointer-events: none; z-index: 190; animation: fade-out-quick linear forwards; transform-origin: center center; transform: translate(-50%, -50%); } @keyframes fade-out-quick { from { opacity: 0.7; transform: translate(-50%,-50%) scale(1); } to { opacity: 0; transform: translate(-50%,-50%) scale(0.2); } }
+        .click-explosion-particle { position: fixed; opacity: 1.0; pointer-events: none; z-index: 180; animation: explode-fade 0.6s ease-out forwards; transform-origin: center center; } @keyframes explode-fade { 0% { opacity: 1; transform: scale(1) translate(0, 0); } 100% { opacity: 0; transform: scale(0.1) translate(var(--tx, 0px), var(--ty, 0px)); } }
+        @keyframes fadeAndShrink { 0% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(0.5); } } .click-image { position: fixed; border-radius: 8px; object-fit: cover; box-shadow: 0 0 12px rgba(255, 255, 255, 0.6); z-index: 100; pointer-events: none; animation: fadeAndShrink linear forwards; transform-origin: center center; } .click-image.circular { border-radius: 50%; }
+        #audioButton { position: fixed; top: 20px; left: 20px; padding: 10px 15px; font-size: 1em; cursor: pointer; z-index: 210; background-color: #333; color: white; border: 1px solid #555; border-radius: 5px; } #audioButton:hover { background-color: #555; } #audioButton:disabled { background-color: #111; color: #777; cursor: not-allowed; }
+        #checklistContainer { position: relative; z-index: 5; width: 80%; max-width: 600px; max-height: 35vh; overflow-y: auto; background-color: rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 5px; border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(2px); pointer-events: auto; transition: display 0.3s ease, opacity 0.3s ease; } #checklistTable { width: 100%; border-collapse: collapse; font-size: var(--table-font-size); color: var(--table-text-color); } #checklistTable thead th { text-align: left; padding: 8px 10px; color: #adf; font-size: 0.9em; border-bottom: var(--table-border-style); user-select: none; } #checklistTable tbody td { padding: 6px 10px; border-bottom: var(--table-border-style); transition: background-color 0.2s ease; } #checklistTable tbody tr { transition: transform 0.3s ease, opacity 0.3s ease; } #checklistTable tbody tr:nth-child(even) { background-color: var(--table-alt-row-bg); } #checklistTable tbody tr:hover { background-color: rgba(0, 0, 0, 0.1); } #checklistTable input[type="checkbox"] { cursor: pointer; transform: scale(1.3); accent-color: #7f7fff; vertical-align: middle; } #checklistTable .item-text, #checklistTable .item-priority { outline: none; padding: 4px 6px; border-radius: 3px; background-color: transparent; border: 1px solid transparent; cursor: text; min-height: 1.2em; display: inline-block; width: 95%; color: inherit; font-size: inherit;} #checklistTable .item-text:focus, #checklistTable .item-priority:focus { background-color: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.3); } #checklistTable td:nth-child(1) { width: 40px; text-align: center; } #checklistTable td:nth-child(3) { width: 100px; } #checklistTable tr.item-exploding { animation: item-explode-out 0.4s ease-out forwards; } @keyframes item-explode-out { 0% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(0.8) translateX(30px); } } #addItemBtn { display: block; margin: 15px auto 5px auto; padding: 8px 18px; font-size: 0.9em; background-color: #4a4a88; color: white; border: none; border-radius: 5px; cursor: pointer; transition: background-color 0.2s ease; } #addItemBtn:hover { background-color: #5a5ab8; }
+        #settingsMenu { display: none; position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); background-color: rgba(30, 30, 50, 0.95); border: 1px solid #779; border-radius: 10px; z-index: 300; color: #eee; box-shadow: 0 5px 25px rgba(0,0,0,0.5); width: 520px; max-height: 90vh; flex-direction: column; }
+        #settingsTabs { display: flex; border-bottom: 1px solid #557; padding: 0 10px; flex-shrink: 0; }
+        .tab-button { padding: 12px 15px; background: none; border: none; color: #aaa; font-size: 0.95em; cursor: pointer; transition: color 0.2s, border-bottom 0.2s; border-bottom: 3px solid transparent; margin-bottom: -1px; }
+        .tab-button.active-tab { color: #fff; border-bottom-color: #adf; }
+        .tab-button:hover { color: #ddd; }
+        #settingsContent { padding: 20px 30px; overflow-y: auto; }
+        .sub-menu { display: none; } .sub-menu.active-sub-menu { display: block; }
+        .setting { margin-bottom: 18px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; } .setting label { flex-basis: 45%; margin-right: 10px; font-size: 0.9em; } .setting input[type="range"], .setting select, .setting input[type="color"] { flex-grow: 1; margin: 0 5px; } .setting input[type="text"] { flex-grow: 1; padding: 5px 8px; border: 1px solid #557; background-color: #1a1a2e; color: #eee; border-radius: 4px; } .setting select { padding: 6px 8px; border: 1px solid #557; background-color: #1a1a2e; color: #eee; border-radius: 4px; cursor: pointer; } .setting input[type="color"] { padding: 2px 4px; border: 1px solid #557; background-color: #1a1a2e; border-radius: 4px; cursor: pointer; min-height: 28px; } .setting input[type="checkbox"] { margin-left: 10px; cursor: pointer; transform: scale(1.2); } .setting label.checkbox-label { flex-basis: auto; margin-right: 5px;} .setting .value-display { min-width: 60px; text-align: right; font-weight: bold; color: #adf; font-size: 0.9em; }
+        .image-url-setting { padding: 5px 0; } .image-url-setting label { flex-basis: auto; margin-right: 10px; } .image-url-setting input[type="url"] { flex-grow: 1; padding: 5px 8px; border: 1px solid #557; background-color: #1a1a2e; color: #eee; border-radius: 4px; }
+        #settingsMenu p.close-instruction { font-size: 0.85em; text-align: center; margin-top: 25px; color: #aaa; padding: 10px 0; }
+
+    </style>
+</head>
+<body>
+
+    <button id="audioButton">Enable Audio Interaction</button>
+    <div id="customCursor"></div>
+
+    <div id="settingsMenu">
+        <div id="settingsTabs">
+            <button class="tab-button active-tab" data-target="textSettings">Text</button>
+            <button class="tab-button" data-target="visibilitySettings">Visibility</button>
+            <button class="tab-button" data-target="shapeSettings">Shapes</button>
+            <button class="tab-button" data-target="audioSettings">Audio</button>
+            <button class="tab-button" data-target="clickSettings">Click/Mouse</button>
+            <button class="tab-button" data-target="listSettings">List</button>
+        </div>
+
+        <div id="settingsContent">
+            <div class="sub-menu active-sub-menu" id="textSettings">
+                <h3>Text Settings</h3>
+                <div class="setting"> <label for="mainTextInput">Main Text:</label> <input type="text" id="mainTextInput"> </div>
+                <div class="setting"> <label for="textSizeSlider">Text Size:</label> <input type="range" id="textSizeSlider" min="2" max="25" step="0.5"> <span class="value-display" id="textSizeValue"></span> </div>
+            </div>
+             <div class="sub-menu" id="visibilitySettings">
+                 <h3>Visibility Settings</h3>
+                 <div class="setting"> <label class="checkbox-label" for="showMainTextToggle">Show Main Text:</label> <input type="checkbox" id="showMainTextToggle"> </div>
+                 <div class="setting"> <label class="checkbox-label" for="showChecklistToggle">Show List/Table:</label> <input type="checkbox" id="showChecklistToggle"> </div>
+                 <hr style="border-color: #446; margin: 20px 0;">
+                  <div class="setting"> <label class="checkbox-label" for="mouseTrailToggle">Enable Mouse Trail:</label> <input type="checkbox" id="mouseTrailToggle"> </div>
+             </div>
+            <div class="sub-menu" id="shapeSettings">
+                <h3>Shape Settings</h3>
+                 <div class="setting"> <label for="starCountSlider">Number of Shapes:</label> <input type="range" id="starCountSlider" min="10" max="700" step="10"> <span class="value-display" id="starCountValue"></span> </div>
+                 <div class="setting"> <label for="starBaseSizeSlider">Shape Base Size:</label> <input type="range" id="starBaseSizeSlider" min="3" max="100" step="1"> <span class="value-display" id="starBaseSizeValue"></span> </div>
+                 <div class="setting"> <label for="shapeColorInput">Shape Color:</label> <input type="color" id="shapeColorInput"> </div>
+                 <div class="setting"> <label for="starShapeSelect">Shape Type:</label> <select id="starShapeSelect"> <option value="shape-circle">Circle</option><option value="shape-square">Square</option><option value="shape-star">Star</option><option value="shape-ring">Ring</option> </select> </div>
+                 <div class="setting"> <label for="starAnimationSelect">Shape Animation:</label> <select id="starAnimationSelect"> <option value="anim-pulse">Pulse</option><option value="anim-fade">Fade</option><option value="anim-spin">Spin</option><option value="anim-drift">Drift</option><option value="anim-none">None</option> </select> </div>
+                 <div class="setting"> <label class="checkbox-label" for="shapeBloomToggle">Enable Shape Bloom:</label> <input type="checkbox" id="shapeBloomToggle"> </div>
+                 <div class="setting"> <label for="bloomIntensitySlider">Bloom Intensity:</label> <input type="range" id="bloomIntensitySlider" min="0" max="60" step="1"> <span class="value-display" id="bloomIntensityValue"></span> </div>
+            </div>
+             <div class="sub-menu" id="audioSettings">
+                 <h3>Audio Reactive Settings</h3>
+                 <p style="font-size:0.85em; color: #bbb; text-align: center; margin-bottom: 15px;">Requires enabling audio via the button.</p>
+                 <div class="setting"> <label for="micMinScaleSlider">Mic: Min Scale:</label> <input type="range" id="micMinScaleSlider" min="0.1" max="2.0" step="0.1"> <span class="value-display" id="micMinScaleValue"></span> </div>
+                 <div class="setting"> <label for="micMaxScaleSlider">Mic: Max Scale:</label> <input type="range" id="micMaxScaleSlider" min="0.5" max="5.0" step="0.1"> <span class="value-display" id="micMaxScaleValue"></span> </div>
+             </div>
+             <div class="sub-menu" id="clickSettings">
+                 <h3>Click & Mouse Settings</h3>
+                 <div class="setting image-url-setting"> <label for="imageUrlInput">Image URL:</label> <input type="url" id="imageUrlInput" placeholder="Paste image link here"> </div>
+                 <hr style="border-color: #446; margin: 20px 0;">
+                 <div class="setting"> <label for="imageSizeSlider">Click Image Size:</label> <input type="range" id="imageSizeSlider" min="10" max="300" step="5"> <span class="value-display" id="imageSizeValue"></span> </div>
+                 <div class="setting"> <label for="fadeDurationSlider">Click Image Fade:</label> <input type="range" id="fadeDurationSlider" min="0.2" max="10.0" step="0.1"> <span class="value-display" id="fadeDurationValue"></span> </div>
+                 <div class="setting"> <label class="checkbox-label" for="imageShapeToggle">Click Image Circular?</label> <input type="checkbox" id="imageShapeToggle"> </div>
+                 <div class="setting"> <label class="checkbox-label" for="clickExplosionToggle">Enable Click Explosion:</label> <input type="checkbox" id="clickExplosionToggle"> </div>
+                 <div class="setting"> <label class="checkbox-label" for="persistImageToggle">Keep Clicked Image?</label> <input type="checkbox" id="persistImageToggle"> </div>
+                 <hr style="border-color: #446; margin: 20px 0;">
+                 <div class="setting"> <label for="trailSizeSlider">Trail Particle Size:</label> <input type="range" id="trailSizeSlider" min="1" max="50" step="1"> <span class="value-display" id="trailSizeValue"></span> </div>
+                 <div class="setting"> <label for="trailDurationSlider">Trail Fade Duration:</label> <input type="range" id="trailDurationSlider" min="0.1" max="3.0" step="0.1"> <span class="value-display" id="trailDurationValue"></span> </div>
+             </div>
+              <div class="sub-menu" id="listSettings">
+                  <h3>List/Table Settings</h3>
+                   <div class="setting"> <label class="checkbox-label" for="showTableBordersToggle">Show Table Borders:</label> <input type="checkbox" id="showTableBordersToggle"> </div>
+                   <div class="setting"> <label for="tableFontSizeSlider">Table Font Size:</label> <input type="range" id="tableFontSizeSlider" min="8" max="24" step="1"> <span class="value-display" id="tableFontSizeValue"></span> </div>
+                   <div class="setting"> <label for="tableTextColorInput">Table Text Color:</label> <input type="color" id="tableTextColorInput"> </div>
+                   <div class="setting"> <label class="checkbox-label" for="tableAltRowToggle">Alternating Row Colors:</label> <input type="checkbox" id="tableAltRowToggle"> </div>
+              </div>
+        </div>
+        <p class="close-instruction">(Press 'Esc' to Close)</p>
+    </div>
+
+    <div id="scene">
+        <h1 id="estrellaHeading"></h1>
+        <div id="checklistContainer">
+             <table id="checklistTable">
+                 <thead> <tr> <th>Done</th> <th>Task</th> <th>Priority</th> </tr> </thead>
+                 <tbody id="checklistTableBody"></tbody>
+             </table>
+             <button id="addItemBtn">+ Add Item</button>
+         </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const body = document.body; const customCursor = document.getElementById('customCursor'); const scene = document.getElementById('scene'); const audioButton = document.getElementById('audioButton'); const imageUrlInput = document.getElementById('imageUrlInput'); const estrellaHeading = document.getElementById('estrellaHeading'); const checklistContainer = document.getElementById('checklistContainer'); const checklistTableBody = document.getElementById('checklistTableBody'); const addItemBtn = document.getElementById('addItemBtn');
+            const settingsMenu = document.getElementById('settingsMenu'); const settingsTabsContainer = document.getElementById('settingsTabs'); const settingsContent = document.getElementById('settingsContent');
+            const showMainTextToggle = document.getElementById('showMainTextToggle'); const showChecklistToggle = document.getElementById('showChecklistToggle'); const mainTextInput = document.getElementById('mainTextInput'); const textSizeSlider = document.getElementById('textSizeSlider'); const textSizeValue = document.getElementById('textSizeValue'); const starCountSlider = document.getElementById('starCountSlider'); const starCountValue = document.getElementById('starCountValue'); const starBaseSizeSlider = document.getElementById('starBaseSizeSlider'); const starBaseSizeValue = document.getElementById('starBaseSizeValue'); const shapeColorInput = document.getElementById('shapeColorInput'); const starShapeSelect = document.getElementById('starShapeSelect'); const starAnimationSelect = document.getElementById('starAnimationSelect'); const shapeBloomToggle = document.getElementById('shapeBloomToggle'); const bloomIntensitySlider = document.getElementById('bloomIntensitySlider'); const bloomIntensityValue = document.getElementById('bloomIntensityValue'); const micMinScaleSlider = document.getElementById('micMinScaleSlider'); const micMinScaleValue = document.getElementById('micMinScaleValue'); const micMaxScaleSlider = document.getElementById('micMaxScaleSlider'); const micMaxScaleValue = document.getElementById('micMaxScaleValue'); const imageSizeSlider = document.getElementById('imageSizeSlider'); const imageSizeValue = document.getElementById('imageSizeValue'); const fadeDurationSlider = document.getElementById('fadeDurationSlider'); const fadeDurationValue = document.getElementById('fadeDurationValue'); const imageShapeToggle = document.getElementById('imageShapeToggle'); const clickExplosionToggle = document.getElementById('clickExplosionToggle'); const persistImageToggle = document.getElementById('persistImageToggle');
+            const mouseTrailToggle = document.getElementById('mouseTrailToggle'); const trailSizeSlider = document.getElementById('trailSizeSlider'); const trailSizeValue = document.getElementById('trailSizeValue'); const trailDurationSlider = document.getElementById('trailDurationSlider'); const trailDurationValue = document.getElementById('trailDurationValue');
+            const showTableBordersToggle = document.getElementById('showTableBordersToggle'); const tableFontSizeSlider = document.getElementById('tableFontSizeSlider'); const tableFontSizeValue = document.getElementById('tableFontSizeValue'); const tableTextColorInput = document.getElementById('tableTextColorInput'); const tableAltRowToggle = document.getElementById('tableAltRowToggle');
+
+            let mainTextContent = ''; let estrellaTextSizeRem = 6; let numStars = 150; let starBaseSize = 15; let shapeBaseColor = '#ffffff'; let selectedShapeClass = 'shape-circle'; let selectedAnimClass = 'anim-pulse'; const possibleShapeClasses = ['shape-circle', 'shape-square', 'shape-star', 'shape-ring']; const possibleAnimClasses = ['anim-pulse', 'anim-fade', 'anim-spin', 'anim-drift', 'anim-none']; let micMinScale = 0.7; let micMaxScale = 2.0; let shapeBloomEnabled = true; let bloomIntensity = 20; let clickImageSize = 60; let clickImageFadeDurationSec = 1.0; let clickImageIsCircular = false; let clickExplosionEnabled = true; let persistClickedImage = false;
+            let mouseTrailEnabled = true; let trailParticleSize = 6; let trailFadeDurationSec = 0.4;
+            let showMainText = false; let showChecklist = false; let showTableBorders = true; let tableFontSizePx = 16; let tableTextColor = '#eeeeee'; let tableAltRowColorEnabled = true;
+
+            let stars = []; let lastTrailTime = 0; const trailInterval = 30; let currentPersistentImage = null;
+            let sceneScale = 1.0; let initialPinchDist = 0; let initialSceneScale = 1.0;
+            let offsetX = 0, offsetY = 0; const moveSpeed = 5; const keysPressed = { w: false, a: false, s: false, d: false };
+            let audioContext; let analyser; let microphone; let dataArray; let audioEnabled = false;
+            let currentImageUrl = '';
+
+             function toggleSettingsMenu() { if (!settingsMenu) return; try { const isVisible = settingsMenu.style.display === 'flex'; settingsMenu.style.display = isVisible ? 'none' : 'flex'; } catch (e) { console.error("Error toggling settings menu:", e); } }
+             function switchSettingTab(event) { if (!event.target.classList.contains('tab-button')) return; const targetId = event.target.dataset.target; if (!targetId) return; settingsTabsContainer.querySelectorAll('.tab-button').forEach(button => { button.classList.toggle('active-tab', button === event.target); }); settingsContent.querySelectorAll('.sub-menu').forEach(pane => { pane.classList.toggle('active-sub-menu', pane.id === targetId); }); }
+             if (settingsTabsContainer) settingsTabsContainer.addEventListener('click', switchSettingTab);
+
+            function applyShapeColor(element) { const targets = element ? [element] : stars.concat(customCursor).filter(Boolean); targets.forEach(el => { if (el.classList.contains('shape-ring')) { el.style.borderColor = shapeBaseColor; el.style.backgroundColor = 'transparent'; } else { el.style.backgroundColor = shapeBaseColor; el.style.borderColor = ''; } }); }
+            function applyBloomEffect(element) { const targets = element ? [element] : stars.concat(customCursor).filter(Boolean); const bloomColor = shapeBaseColor + 'aa'; targets.forEach(el => { if (shapeBloomEnabled && bloomIntensity > 0) { const spreadRadius = Math.max(1, Math.round(bloomIntensity / 4)); el.style.boxShadow = `0 0 ${bloomIntensity}px ${spreadRadius}px ${bloomColor}`; } else { el.style.boxShadow = 'none'; } }); }
+            function applyBaseSize(element) { const targets = element ? [element] : stars; targets.forEach(el => { if (!el) return; el.style.width = `${starBaseSize}px`; el.style.height = `${starBaseSize}px`; }); }
+            function applyShapeClass(element) { const targets = element ? [element] : stars.concat(customCursor).filter(Boolean); targets.forEach(el => { possibleShapeClasses.forEach(cls => el.classList.remove(cls)); if (selectedShapeClass) el.classList.add(selectedShapeClass); }); }
+            function applyAnimationClass(element) { const targets = element ? [element] : stars; targets.forEach(el => { if (!el) return; possibleAnimClasses.forEach(cls => el.classList.remove(cls)); if (selectedAnimClass && selectedAnimClass !== 'anim-none') { el.classList.add(selectedAnimClass); setRandomAnimationTimings(el); } else { el.style.animationName = 'none'; el.style.animationDuration = ''; el.style.animationDelay = ''; } }); }
+            function applyTableStyles() { document.documentElement.style.setProperty('--table-border-style', showTableBorders ? '1px solid #557' : 'none'); document.documentElement.style.setProperty('--table-font-size', `${tableFontSizePx}px`); document.documentElement.style.setProperty('--table-text-color', tableTextColor); document.documentElement.style.setProperty('--table-alt-row-bg', tableAltRowColorEnabled ? 'rgba(0,0,0,0.1)' : 'transparent'); }
+
+             function clearStars() { stars.forEach(star => star.remove()); stars = []; }
+             function setRandomAnimationTimings(element) { const duration = Math.random() * 3 + 2; const delay = Math.random() * 5; element.style.animationDuration = `${duration}s`; element.style.animationDelay = `${delay}s`; }
+             function createStars(count) { const winWidth = window.innerWidth; const winHeight = window.innerHeight; const spreadWidth = winWidth * 2.5; const spreadHeight = winHeight * 2.5; const offX = (winWidth - spreadWidth) / 2; const offY = (winHeight - spreadHeight) / 2; for (let i = 0; i < count; i++) { const star = document.createElement('div'); star.classList.add('visual-star'); applyBaseSize(star); applyShapeClass(star); applyShapeColor(star); applyBloomEffect(star); applyAnimationClass(star); const randomTop = Math.random() * spreadHeight + offY; const randomLeft = Math.random() * spreadWidth + offX; star.style.top = `${randomTop}px`; star.style.left = `${randomLeft}px`; scene.appendChild(star); stars.push(star); } updateStarAudioEffect(); }
+             function regenerateStars(newCount) { clearStars(); createStars(newCount); }
+
+            function updateMainTextVisibility() { if(estrellaHeading) estrellaHeading.style.display = showMainText ? 'block' : 'none'; }
+            function updateChecklistVisibility() { if(checklistContainer) checklistContainer.style.display = showChecklist ? 'block' : 'none'; }
+
+            function updateEstrellaText(text) { if(estrellaHeading) estrellaHeading.textContent = text; }
+            function updateEstrellaSize(sizeRem) { if(estrellaHeading) estrellaHeading.style.fontSize = `${sizeRem}rem`; }
+
+             async function setupAudio() { if (audioContext) return; if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { alert('getUserMedia not supported.'); audioButton.textContent = "Audio Not Supported"; audioButton.disabled = true; return; } try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); audioContext = new (window.AudioContext || window.webkitAudioContext)(); analyser = audioContext.createAnalyser(); microphone = audioContext.createMediaStreamSource(stream); analyser.fftSize = 256; dataArray = new Uint8Array(analyser.frequencyBinCount); microphone.connect(analyser); audioEnabled = true; audioButton.textContent = "Audio Active"; audioButton.disabled = true; } catch (err) { console.error("Mic Error:", err); alert("Mic access denied or failed."); audioButton.textContent = "Audio Error"; audioButton.disabled = true; } }
+             function getVolume() { if (!analyser) return 0; analyser.getByteFrequencyData(dataArray); let sum = 0; for (let i = 0; i < dataArray.length; i++) { sum += dataArray[i]; } let average = sum / dataArray.length; return Math.min(1.0, average / 128); }
+             function updateTransformScale(element, scaleValue) { let ct = element.style.transform || ''; const ss = `scale(${scaleValue.toFixed(3)})`; ct = ct.includes('scale(') ? ct.replace(/scale\([^)]+\)/, ss) : ct + (ct ? ' ' : '') + ss; element.style.transform = ct; }
+             function updateStarAudioEffect() { if (!audioEnabled || !stars.length) { return; } const volume = getVolume(); stars.forEach(star => { const targetScale = micMinScale + (volume * (micMaxScale - micMinScale)); updateTransformScale(star, targetScale); }); }
+
+            function updateCustomCursorStyle() { if (!customCursor) return; const cursorSize = starBaseSize + 4; customCursor.style.width = `${cursorSize}px`; customCursor.style.height = `${cursorSize}px`; applyShapeClass(customCursor); applyShapeColor(customCursor); applyBloomEffect(customCursor); }
+
+             function handleMouseMove(event) { if(customCursor) { try { customCursor.style.left = `${event.clientX}px`; customCursor.style.top = `${event.clientY}px`; } catch (e) {} } if (!mouseTrailEnabled || (settingsMenu && settingsMenu.style.display === 'flex')) return; const now = Date.now(); if (now - lastTrailTime < trailInterval) return; lastTrailTime = now; const particle = document.createElement('div'); particle.classList.add('mouse-trail-particle'); if (selectedShapeClass) particle.classList.add(selectedShapeClass); applyShapeColor(particle); particle.style.width = `${trailParticleSize}px`; particle.style.height = `${trailParticleSize}px`; if(particle.classList.contains('shape-ring')) particle.style.borderWidth = '1px'; particle.style.left = `${event.clientX}px`; particle.style.top = `${event.clientY}px`; particle.style.transform = `translate(-50%, -50%)`; particle.style.animationDuration = `${trailFadeDurationSec}s`; body.appendChild(particle); setTimeout(() => { if (particle.parentNode) particle.remove(); }, trailFadeDurationSec * 1000); }
+
+             function addChecklistItem(taskText = 'New Task', priorityText = 'Normal') { if (!checklistTableBody) return; const tr = document.createElement('tr'); const tdCheck = document.createElement('td'); const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; tdCheck.appendChild(checkbox); const tdTask = document.createElement('td'); const spanTask = document.createElement('span'); spanTask.classList.add('item-text'); spanTask.contentEditable = 'true'; spanTask.textContent = taskText; tdTask.appendChild(spanTask); const tdPriority = document.createElement('td'); const spanPriority = document.createElement('span'); spanPriority.classList.add('item-priority'); spanPriority.contentEditable = 'true'; spanPriority.textContent = priorityText; tdPriority.appendChild(spanPriority); tr.appendChild(tdCheck); tr.appendChild(tdTask); tr.appendChild(tdPriority); checklistTableBody.appendChild(tr); }
+             function handleChecklistChange(event) { if (event.target.type === 'checkbox' && event.target.checked) { const tr = event.target.closest('tr'); if (!tr) return; const checkboxCell = tr.cells[0]; const rect = checkboxCell.getBoundingClientRect(); const explosionOriginX = rect.left + rect.width / 2; const explosionOriginY = rect.top + rect.height / 2; const particleCount = 15; const explosionDuration = 600; for (let i = 0; i < particleCount; i++) { const particle = document.createElement('div'); particle.classList.add('click-explosion-particle'); if (selectedShapeClass) particle.classList.add(selectedShapeClass); applyShapeColor(particle); const particleSize = Math.max(2, starBaseSize * 0.6); particle.style.width = `${particleSize}px`; particle.style.height = `${particleSize}px`; if(particle.classList.contains('shape-ring')) particle.style.borderWidth = '1px'; particle.style.left = `${explosionOriginX}px`; particle.style.top = `${explosionOriginY}px`; const angle = Math.random()*Math.PI*2; const distance = Math.random()*70+40; const translateX = Math.cos(angle)*distance; const translateY = Math.sin(angle)*distance; particle.style.setProperty('--tx', `${translateX}px`); particle.style.setProperty('--ty', `${translateY}px`); particle.style.animationDelay = `${Math.random()*0.1}s`; document.body.appendChild(particle); setTimeout(() => { if (particle.parentNode) particle.remove(); }, explosionDuration); } tr.classList.add('item-exploding'); tr.addEventListener('animationend', () => { tr.remove(); }, { once: true }); } }
+
+            function handleKeyDown(event) { if (event.key === 'Escape') { toggleSettingsMenu(); return; } if ((settingsMenu && settingsMenu.style.display === 'flex') || ['INPUT', 'SELECT', 'TEXTAREA'].includes(event.target.tagName) || event.target.isContentEditable ) { return; } switch (event.key.toLowerCase()) { case 'w': keysPressed.w = true; break; case 'a': keysPressed.a = true; break; case 's': keysPressed.s = true; break; case 'd': keysPressed.d = true; break; } }
+            function handleKeyUp(event) { switch (event.key.toLowerCase()) { case 'w': keysPressed.w = false; break; case 'a': keysPressed.a = false; break; case 's': keysPressed.s = false; break; case 'd': keysPressed.d = false; break; } }
+
+            imageUrlInput.addEventListener('input', (event) => { currentImageUrl = event.target.value.trim(); });
+
+             document.body.addEventListener('click', (event) => { if ((settingsMenu && settingsMenu.style.display === 'flex') || (settingsMenu && settingsMenu.contains(event.target)) || (audioButton && audioButton.contains(event.target)) || (imageUrlInput && imageUrlInput.contains(event.target)) || (checklistContainer && checklistContainer.contains(event.target)) || event.target === customCursor ) { return; } if (persistClickedImage && currentPersistentImage) { currentPersistentImage.remove(); currentPersistentImage = null; return; } if (clickExplosionEnabled) { const particleCount = 15; const explosionDuration = 600; for (let i = 0; i < particleCount; i++) { const particle = document.createElement('div'); particle.classList.add('click-explosion-particle'); if (selectedShapeClass) particle.classList.add(selectedShapeClass); applyShapeColor(particle); const particleSize = Math.max(2, starBaseSize * 0.5); particle.style.width = `${particleSize}px`; particle.style.height = `${particleSize}px`; if(particle.classList.contains('shape-ring')) particle.style.borderWidth = '1px'; particle.style.left = `${event.clientX}px`; particle.style.top = `${event.clientY}px`; const angle = Math.random()*Math.PI*2; const distance = Math.random()*60+30; const translateX = Math.cos(angle)*distance; const translateY = Math.sin(angle)*distance; particle.style.setProperty('--tx', `${translateX}px`); particle.style.setProperty('--ty', `${translateY}px`); particle.style.animationDelay = `${Math.random()*0.1}s`; document.body.appendChild(particle); setTimeout(() => { if (particle.parentNode) particle.remove(); }, explosionDuration); } } if (currentImageUrl) { if (persistClickedImage && currentPersistentImage) { currentPersistentImage.remove(); currentPersistentImage = null; } const img = document.createElement('img'); img.src = currentImageUrl; const offset = clickImageSize / 2; img.style.left = `${event.clientX - offset}px`; img.style.top = `${event.clientY - offset}px`; img.style.width = `${clickImageSize}px`; img.style.height = `${clickImageSize}px`; img.onerror = () => { if (img.parentNode) img.remove(); if (img === currentPersistentImage) currentPersistentImage = null; }; if (persistClickedImage) { img.style.position = 'fixed'; img.style.objectFit = 'cover'; img.style.boxShadow = '0 0 12px rgba(255, 255, 255, 0.6)'; img.style.zIndex = '100'; img.style.opacity = '1'; img.style.borderRadius = clickImageIsCircular ? '50%' : '8px'; currentPersistentImage = img; } else { img.classList.add('click-image'); if (clickImageIsCircular) img.classList.add('circular'); img.style.position = 'fixed'; img.style.animationDuration = `${clickImageFadeDurationSec}s`; setTimeout(() => { if (img.parentNode) img.remove(); }, clickImageFadeDurationSec * 1000); currentPersistentImage = null; } document.body.appendChild(img); } });
+
+             function getPinchDist(event) { const t1=event.touches[0]; const t2=event.touches[1]; const dx=t1.clientX-t2.clientX; const dy=t1.clientY-t2.clientY; return Math.hypot(dx,dy); }
+             body.addEventListener('touchstart', (event) => { if (event.touches.length === 2) { event.preventDefault(); initialPinchDist = getPinchDist(event); initialSceneScale = sceneScale; } }, { passive: false });
+             body.addEventListener('touchmove', (event) => { if (event.touches.length === 2) { event.preventDefault(); const currentDist = getPinchDist(event); if (initialPinchDist > 0) { const scaleFactor = currentDist / initialPinchDist; let newScale = initialSceneScale * scaleFactor; newScale = Math.min(Math.max(newScale, 0.2), 5.0); sceneScale = newScale; } } }, { passive: false });
+             body.addEventListener('touchend', (event) => { if (event.touches.length < 2) { initialPinchDist = 0; } });
+
+            function updateSceneTransform() { if(scene) { scene.style.transform = `translate(calc(-50% + ${offsetX}px), calc(-50% + ${offsetY}px)) scale(${sceneScale.toFixed(3)})`; } }
+
+             mainTextInput.addEventListener('input', (e) => { mainTextContent = e.target.value; updateEstrellaText(mainTextContent); });
+             textSizeSlider.addEventListener('input', (e) => { estrellaTextSizeRem = parseFloat(e.target.value); textSizeValue.textContent = `${estrellaTextSizeRem.toFixed(1)} rem`; updateEstrellaSize(estrellaTextSizeRem); });
+             starCountSlider.addEventListener('input', (e) => { const newCount = parseInt(e.target.value, 10); starCountValue.textContent = newCount; if (newCount !== numStars) { numStars = newCount; regenerateStars(numStars); } });
+             starBaseSizeSlider.addEventListener('input', (e) => { starBaseSize = parseInt(e.target.value, 10); starBaseSizeValue.textContent = `${starBaseSize} px`; applyBaseSize(null); updateCustomCursorStyle(); });
+             shapeColorInput.addEventListener('input', (e) => { shapeBaseColor = e.target.value; applyShapeColor(null); applyBloomEffect(null); updateCustomCursorStyle(); });
+             starShapeSelect.addEventListener('change', (e) => { selectedShapeClass = e.target.value; applyShapeClass(null); applyShapeColor(null); updateCustomCursorStyle();});
+             starAnimationSelect.addEventListener('change', (e) => { selectedAnimClass = e.target.value; applyAnimationClass(null); });
+             shapeBloomToggle.addEventListener('change', (e) => { shapeBloomEnabled = e.target.checked; applyBloomEffect(null); updateCustomCursorStyle(); });
+             bloomIntensitySlider.addEventListener('input', (e) => { bloomIntensity = parseInt(e.target.value, 10); bloomIntensityValue.textContent = bloomIntensity; if(shapeBloomEnabled) { applyBloomEffect(null); updateCustomCursorStyle();} });
+             micMinScaleSlider.addEventListener('input', (e) => { micMinScale = parseFloat(e.target.value); micMinScaleValue.textContent = micMinScale.toFixed(1); });
+             micMaxScaleSlider.addEventListener('input', (e) => { micMaxScale = parseFloat(e.target.value); micMaxScaleValue.textContent = micMaxScale.toFixed(1); });
+             imageSizeSlider.addEventListener('input', (e) => { clickImageSize = parseInt(e.target.value, 10); imageSizeValue.textContent = `${clickImageSize} px`; });
+             fadeDurationSlider.addEventListener('input', (e) => { clickImageFadeDurationSec = parseFloat(e.target.value); fadeDurationValue.textContent = `${clickImageFadeDurationSec.toFixed(1)} s`; });
+             imageShapeToggle.addEventListener('change', (e) => { clickImageIsCircular = e.target.checked; });
+             clickExplosionToggle.addEventListener('change', (e) => { clickExplosionEnabled = e.target.checked; });
+             persistImageToggle.addEventListener('change', (e) => { persistClickedImage = e.target.checked; if (!persistClickedImage && currentPersistentImage) { currentPersistentImage.remove(); currentPersistentImage = null;} });
+             mouseTrailToggle.addEventListener('change', (e) => { mouseTrailEnabled = e.target.checked; });
+             trailSizeSlider.addEventListener('input', (e) => { trailParticleSize = parseInt(e.target.value, 10); trailSizeValue.textContent = `${trailParticleSize} px`; });
+             trailDurationSlider.addEventListener('input', (e) => { trailFadeDurationSec = parseFloat(e.target.value); trailDurationValue.textContent = `${trailFadeDurationSec.toFixed(1)} s`; });
+             showMainTextToggle.addEventListener('change', (e) => { showMainText = e.target.checked; updateMainTextVisibility(); });
+             showChecklistToggle.addEventListener('change', (e) => { showChecklist = e.target.checked; updateChecklistVisibility(); });
+             showTableBordersToggle.addEventListener('change', (e) => { showTableBorders = e.target.checked; applyTableStyles(); });
+             tableFontSizeSlider.addEventListener('input', (e) => { tableFontSizePx = parseInt(e.target.value, 10); tableFontSizeValue.textContent = `${tableFontSizePx} px`; applyTableStyles(); });
+             tableTextColorInput.addEventListener('input', (e) => { tableTextColor = e.target.value; applyTableStyles(); });
+             tableAltRowToggle.addEventListener('change', (e) => { tableAltRowColorEnabled = e.target.checked; applyTableStyles(); });
+
+            function initializeSettings() {
+                try {
+                    showMainTextToggle.checked = showMainText; updateMainTextVisibility(); showChecklistToggle.checked = showChecklist; updateChecklistVisibility();
+                    mainTextInput.value = mainTextContent; updateEstrellaText(mainTextContent); textSizeSlider.value = estrellaTextSizeRem; textSizeValue.textContent = `${estrellaTextSizeRem.toFixed(1)} rem`; updateEstrellaSize(estrellaTextSizeRem);
+                    starCountSlider.value = numStars; starCountValue.textContent = numStars; starBaseSizeSlider.value = starBaseSize; starBaseSizeValue.textContent = `${starBaseSize} px`; shapeColorInput.value = shapeBaseColor; starShapeSelect.value = selectedShapeClass; starAnimationSelect.value = selectedAnimClass;
+                    shapeBloomToggle.checked = shapeBloomEnabled; bloomIntensitySlider.value = bloomIntensity; bloomIntensityValue.textContent = bloomIntensity;
+                    micMinScaleSlider.value = micMinScale; micMinScaleValue.textContent = micMinScale.toFixed(1); micMaxScaleSlider.value = micMaxScale; micMaxScaleValue.textContent = micMaxScale.toFixed(1);
+                    imageSizeSlider.value = clickImageSize; imageSizeValue.textContent = `${clickImageSize} px`; fadeDurationSlider.value = clickImageFadeDurationSec; fadeDurationValue.textContent = `${clickImageFadeDurationSec.toFixed(1)} s`; imageShapeToggle.checked = clickImageIsCircular; clickExplosionToggle.checked = clickExplosionEnabled;
+                    persistImageToggle.checked = persistClickedImage; mouseTrailToggle.checked = mouseTrailEnabled; trailSizeSlider.value = trailParticleSize; trailSizeValue.textContent = `${trailParticleSize} px`; trailDurationSlider.value = trailFadeDurationSec; trailDurationValue.textContent = `${trailFadeDurationSec.toFixed(1)} s`;
+                    showTableBordersToggle.checked = showTableBorders; tableFontSizeSlider.value = tableFontSizePx; tableFontSizeValue.textContent = `${tableFontSizePx} px`; tableTextColorInput.value = tableTextColor; tableAltRowToggle.checked = tableAltRowColorEnabled; applyTableStyles();
+                    createStars(numStars); addChecklistItem("Task 1"); addChecklistItem("Item 2", "High");
+                    updateCustomCursorStyle(); updateSceneTransform();
+                } catch(e) { console.error("Error during initialization:", e); }
+            }
+
+            function animate() { try { let needsTransformUpdate = false; if (settingsMenu && settingsMenu.style.display !== 'flex') { let moveX = 0, moveY = 0; if (keysPressed.w) moveY += moveSpeed; if (keysPressed.s) moveY -= moveSpeed; if (keysPressed.a) moveX += moveSpeed; if (keysPressed.d) moveX -= moveSpeed; if (moveX !== 0 || moveY !== 0) { offsetX += moveX; offsetY += moveY; needsTransformUpdate = true; } } if (scene && !scene.style.transform.includes(`scale(${sceneScale.toFixed(3)})`)) { needsTransformUpdate = true; } if (needsTransformUpdate) { updateSceneTransform(); } updateStarAudioEffect(); requestAnimationFrame(animate); } catch(e) { console.error("Error in animation loop:", e); } }
+
+            initializeSettings();
+            window.addEventListener('keydown', handleKeyDown); window.addEventListener('keyup', handleKeyUp);
+            if (audioButton) audioButton.addEventListener('click', setupAudio);
+            if (addItemBtn) addItemBtn.addEventListener('click', () => addChecklistItem());
+            if (checklistTableBody) checklistTableBody.addEventListener('change', handleChecklistChange);
+            body.addEventListener('mousemove', handleMouseMove);
+            body.addEventListener('touchstart', (event) => { if (event.touches.length === 2) { event.preventDefault(); initialPinchDist = getPinchDist(event); initialSceneScale = sceneScale; } }, { passive: false }); body.addEventListener('touchmove', (event) => { if (event.touches.length === 2) { event.preventDefault(); const currentDist = getPinchDist(event); if (initialPinchDist > 0) { const scaleFactor = currentDist / initialPinchDist; let newScale = initialSceneScale * scaleFactor; newScale = Math.min(Math.max(newScale, 0.2), 5.0); sceneScale = newScale; } } }, { passive: false }); body.addEventListener('touchend', (event) => { if (event.touches.length < 2) { initialPinchDist = 0; } });
+            animate();
+
+        });
+    </script>
+
+</body>
+</html>

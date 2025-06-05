@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>OrbitCraft: Delta-V Challenge</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 5px; 
+            background-color: #000020;
+            color: #e0e0e0;
+            overflow: hidden; 
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            height: 100vh; 
+            box-sizing: border-box;
+        }
+
+        h1 {
+            color: #a0c0ff;
+            margin-top: 5px;
+            margin-bottom: 8px; 
+            font-size: 1.5em; 
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .simulation-layout {
+            display: flex;
+            flex-wrap: nowrap; 
+            gap: 8px; 
+            width: 100%;
+            max-width: 1200px; 
+            flex-grow: 1; 
+            min-height: 0; 
+        }
+
+        .canvas-container {
+            flex-grow: 1; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #000000;
+            border-radius: 8px;
+            border: 1px solid #203050;
+            overflow: hidden;
+            height: 100%; 
+        }
+
+        #orbitCanvas {
+            background-color: #080818; 
+            display: block;
+        }
+
+        .controls-panel {
+            width: 280px; 
+            min-width: 250px; 
+            padding: 10px; 
+            background-color: #101030;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px; 
+            color: #c0d0ff;
+            border: 1px solid #203050;
+            overflow-y: auto; 
+            height: 100%; 
+            box-sizing: border-box;
+            flex-shrink: 0;
+        }
+
+        .controls-panel h3 {
+            margin-top: 0; margin-bottom: 6px; color: #d0e0ff; font-size: 1.05em; 
+            border-bottom: 1px solid #304070; padding-bottom: 4px;
+        }
+        .control-group { margin-bottom: 8px; }
+        .control-group label { display: block; font-size: 0.85em; margin-bottom: 3px; } 
+        .control-group select { width:100%; padding: 5px; font-size:0.85em; background-color: #080818; color: #e0e0e0; border: 1px solid #304070;}
+        .control-group input[type="range"] { width: 100%; margin-bottom: 3px;}
+        .control-group input[type="checkbox"] { margin-right: 5px; vertical-align: middle;}
+
+        .control-group button, .time-warp-controls button {
+            padding: 7px 9px; font-size: 0.85em; background-color: #305090; 
+            color: #e0f0ff; border: none; border-radius: 4px; cursor: pointer;
+            transition: background-color 0.2s; width: 100%; margin-top: 2px;
+        }
+        .control-group button:hover:not(:disabled), .time-warp-controls button:hover:not(:disabled) { background-color: #4060a0; }
+        .control-group button:disabled, .time-warp-controls button:disabled { background-color: #253550; color: #7080a0; cursor: not-allowed;}
+        .control-group button.active, .time-warp-controls button.active-warp { background-color: #50a070; }
+        .rotation-buttons { display: flex; justify-content: space-between; }
+        .rotation-buttons button { width: 48%; }
+
+        .time-warp-controls { display: flex; justify-content: space-around; margin-bottom: 8px; }
+        .time-warp-controls button { width: 23%; padding: 5px; font-size: 0.8em;}
+
+
+        .data-display p { margin: 4px 0; font-size: 0.8em; line-height: 1.3; } 
+        .data-display span { font-weight: bold; color: #80c0ff; min-width: 55px; display: inline-block; } 
+        #statusMessage { font-weight: bold; color: #ffdd77; }
+        .ap-pe-display.escaped { color: #ff8080; } /* Class for "Infinity" text */
+        .ap-pe-display.impact { color: #f0a0a0; } /* Class for "Impact" text */
+        
+        .mission-objective-display {
+            margin-top: 8px; padding: 8px; background-color: #182038; border-radius: 4px;
+            font-size: 0.8em;
+        }
+        .mission-objective-display p { margin: 3px 0; }
+
+
+        @media (max-width: 800px) { 
+            body { padding-top: 5px; padding-bottom: 5px; }
+            .simulation-layout {
+                flex-direction: column;
+                height: calc(100vh - 55px); 
+            }
+            .controls-panel {
+                width: 100%; max-width: none; order: 1; height: auto; max-height: 45vh; 
+            }
+            .canvas-container {
+                width: 100%; order: 0; flex-grow: 1; min-height: 200px; 
+            }
+            h1 { font-size: 1.2em; margin-bottom: 5px; }
+        }
+         @media (max-width: 480px) {
+            .data-display p { font-size: 0.75em; }
+            .control-group button, .time-warp-controls button {padding: 6px 7px; font-size: 0.8em;}
+         }
+    </style>
+</head>
+<body>
+    <h1>OrbitCraft: Delta-V Challenge</h1>
+    <div class="simulation-layout">
+        <div class="canvas-container">
+            <canvas id="orbitCanvas"></canvas>
+        </div>
+        <div class="controls-panel">
+            <div class="control-group">
+                <button id="resetMissionBtn">Reset Mission</button>
+            </div>
+             <div class="control-group">
+                <label for="missionSelect">Mission Objective:</label>
+                <select id="missionSelect">
+                    <option value="freestyle">Test Flight (Freestyle)</option>
+                    <option value="sputnik1">Sputnik 1 (1957)</option>
+                    <option value="mercury7">Mercury Friendship 7 (1962)</option>
+                    <option value="apollo11leo">Apollo 11 (LEO Park Orbit)</option>
+                    <option value="shuttleleo">Space Shuttle (Typical LEO)</option>
+                    <option value="leo">LEO Attempt (200km circ.)</option>
+                    <option value="gto">GTO Attempt (200 x 35786km)</option>
+                    <option value="heeo">High Elliptical (500 x 50000km)</option>
+                </select>
+                <div class="mission-objective-display" id="missionObjectiveDisplay">
+                    <p>Target Ap: <span id="targetApDisplay">N/A</span> km</p>
+                    <p>Target Pe: <span id="targetPeDisplay">N/A</span> km</p>
+                </div>
+            </div>
+            <div class="control-group">
+                <h3>Flight Controls</h3>
+                <button id="engineToggleBtn">Ignite Engine</button>
+                <label for="throttleSlider">Throttle: <span id="throttleValueDisplay">0</span>%</label>
+                <input type="range" id="throttleSlider" min="0" max="100" value="0">
+            </div>
+            <div class="control-group">
+                <label>Attitude Control (Rotation)</label>
+                <div class="rotation-buttons">
+                    <button id="rotateCCWBtn">&lt;&lt; Left</button>
+                    <button id="rotateCWBtn">Right &gt;&gt;</button>
+                </div>
+            </div>
+            <div class="control-group">
+                <label>Time Warp:</label>
+                <div class="time-warp-controls">
+                    <button data-warp="1">1x</button>
+                    <button data-warp="5">5x</button>
+                    <button data-warp="20">20x</button>
+                    <button data-warp="100">100x</button>
+                </div>
+            </div>
+             <div class="control-group">
+                <label>
+                    <input type="checkbox" id="trajectoryToggle"> Show Predicted Trajectory
+                </label>
+            </div>
+            <div class="data-display">
+                <h3>Telemetry</h3>
+                <p>Time: <span id="timeDisplay">0.0</span> s</p>
+                <p>Altitude: <span id="altitudeDisplay">0.0</span> km</p>
+                <p>Velocity: <span id="velocityDisplay">0.0</span> m/s</p>
+                <p id="fuelLine">Fuel Rem.: <span id="deltaVDisplay">7800</span> m/s</p>
+                <p>Apoapsis: <span id="apoapsisDisplay" class="ap-pe-display">N/A</span> km</p>
+                <p>Periapsis: <span id="periapsisDisplay" class="ap-pe-display">N/A</span> km</p>
+                <p>Proj. Ap: <span id="projApoapsisDisplay" class="ap-pe-display">N/A</span> km</p>
+                <p>Proj. Pe: <span id="projPeriapsisDisplay" class="ap-pe-display">N/A</span> km</p>
+                <p>Orientation: <span id="orientationDisplay">90</span>°</p>
+                <p>Status: <span id="statusMessage">On Launchpad</span></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('orbitCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const engineToggleBtn = document.getElementById('engineToggleBtn');
+        const throttleSlider = document.getElementById('throttleSlider');
+        const throttleValueDisplay = document.getElementById('throttleValueDisplay');
+        const rotateCCWBtn = document.getElementById('rotateCCWBtn');
+        const rotateCWBtn = document.getElementById('rotateCWBtn');
+        const resetMissionBtn = document.getElementById('resetMissionBtn');
+        const timeWarpControls = document.querySelector('.time-warp-controls');
+        const trajectoryToggle = document.getElementById('trajectoryToggle');
+        const missionSelect = document.getElementById('missionSelect');
+        const targetApDisplay = document.getElementById('targetApDisplay');
+        const targetPeDisplay = document.getElementById('targetPeDisplay');
+
+        const timeDisplay = document.getElementById('timeDisplay');
+        const altitudeDisplay = document.getElementById('altitudeDisplay');
+        const velocityDisplay = document.getElementById('velocityDisplay');
+        const deltaVDisplay = document.getElementById('deltaVDisplay'); // This is the SPAN for the value
+        const apoapsisDisplay = document.getElementById('apoapsisDisplay');
+        const periapsisDisplay = document.getElementById('periapsisDisplay');
+        const projApoapsisDisplay = document.getElementById('projApoapsisDisplay');
+        const projPeriapsisDisplay = document.getElementById('projPeriapsisDisplay');
+        const orientationDisplay = document.getElementById('orientationDisplay');
+        const statusMessage = document.getElementById('statusMessage');
+
+        const G = 6.67430e-11; 
+        const M_EARTH = 5.972e24; 
+        const R_EARTH_METERS = 6371000; 
+        const MU_EARTH = G * M_EARTH; 
+        
+        let PIXELS_PER_METER; 
+        let EARTH_RADIUS_PIXELS; 
+        const ROCKET_SIZE_PIXELS_BASE = 12; // Further increased rocket base size
+        const TRAIL_LENGTH = 300;
+        const PREDICTION_STEPS = 250; 
+
+        let rocket = {};
+        let INITIAL_DELTA_V = 8500; 
+        const MAX_THRUST_FORCE = 3000000; 
+        const ROCKET_MASS_DRY = 2000; 
+
+        let time = 0;
+        let baseGameTimeStep = 0.05; 
+        let timeScaleFactor = 1;
+        let viewOffsetX = 0;
+        let viewOffsetY = 0;
+        let animationFrameId;
+        let rocketTrail = [];
+        let missionActive = false;
+
+        const TARGET_VIEW_DIAMETER_METERS = R_EARTH_METERS * 2.8; 
+
+        const missionData = { /* ... (same as previous, with updated dV) ... */
+            "freestyle": { name: "Test Flight (Freestyle)", targetAp: "N/A", targetPe: "N/A", deltaV: 8500 },
+            "sputnik1": { name: "Sputnik 1 (1957)", targetAp: "939", targetPe: "215", deltaV: 9200 },
+            "mercury7": { name: "Mercury Friendship 7 (1962)", targetAp: "265", targetPe: "160", deltaV: 9400 },
+            "apollo11leo": { name: "Apollo 11 (LEO Park Orbit)", targetAp: "190", targetPe: "185", deltaV: 9600 },
+            "shuttleleo": { name: "Space Shuttle (Typical LEO)", targetAp: "400", targetPe: "330", deltaV: 9700 },
+            "leo": { name: "LEO Attempt (200km circ.)", targetAp: "200", targetPe: "200", deltaV: 9500 },
+            "gto": { name: "GTO Attempt (200 x 35786km)", targetAp: "35786", targetPe: "200", deltaV: 10500 },
+            "heeo": { name: "High Elliptical (500 x 50000km)", targetAp: "50000", targetPe: "500", deltaV: 11500 }
+        };
+
+        function updateMissionObjectiveDisplay() { /* ... (same) ... */
+            const selectedMissionKey = missionSelect.value;
+            const selectedMission = missionData[selectedMissionKey];
+            targetApDisplay.textContent = selectedMission.targetAp.toString();
+            targetPeDisplay.textContent = selectedMission.targetPe.toString();
+            INITIAL_DELTA_V = selectedMission.deltaV; 
+        }
+
+        function resizeCanvas() { /* ... (same) ... */ 
+            const container = document.querySelector('.canvas-container');
+            let newWidth = container.clientWidth; let newHeight = container.clientHeight;
+            if (newWidth <= 0 || newHeight <= 0) { 
+                newWidth = Math.max(300, window.innerWidth * 0.5); newHeight = Math.max(300, window.innerHeight * 0.5);
+            }
+            canvas.width = newWidth; canvas.height = newHeight;
+            if (canvas.width === 0 || canvas.height === 0) return; 
+            PIXELS_PER_METER = Math.min(canvas.width, canvas.height) / TARGET_VIEW_DIAMETER_METERS;
+            EARTH_RADIUS_PIXELS = R_EARTH_METERS * PIXELS_PER_METER;
+            viewOffsetX = canvas.width / 2; viewOffsetY = canvas.height / 2;
+        }
+        
+        function resetRocketState() { /* ... (same) ... */
+            updateMissionObjectiveDisplay(); 
+            rocket = {
+                x: 0, y: R_EARTH_METERS, vx: 0, vy: 0,
+                angle: Math.PI / 2, 
+                engineOn: false, throttle: 0, 
+                deltaVRemaining: INITIAL_DELTA_V, 
+                mass: ROCKET_MASS_DRY,
+                status: "On Launchpad", onSurface: true
+            };
+            rocketTrail = []; time = 0; 
+            missionActive = false; 
+            engineToggleBtn.textContent = "Ignite Engine";
+            engineToggleBtn.classList.remove('active'); engineToggleBtn.disabled = false; 
+            throttleSlider.value = 0; throttleValueDisplay.textContent = "0";
+            
+            apoapsisDisplay.textContent = "N/A"; periapsisDisplay.textContent = "N/A";
+            projApoapsisDisplay.textContent = "N/A"; projPeriapsisDisplay.textContent = "N/A";
+            document.querySelectorAll('.ap-pe-display').forEach(el => el.className = 'ap-pe-display'); // Clear all status classes
+            statusMessage.textContent = rocket.status; 
+            updateUI(); 
+        }
+
+        function updateRocketPhysics() { /* ... (same "On Launchpad" and "In Flight" logic as previous) ... */
+            if (!missionActive) return; if (rocket.status === "Impacted") return;
+            const effectiveDt = baseGameTimeStep * timeScaleFactor; 
+            let currentThrustForce = 0;
+            if (rocket.engineOn && rocket.throttle > 0 && rocket.deltaVRemaining > 0) currentThrustForce = MAX_THRUST_FORCE * rocket.throttle;
+
+            if (rocket.status === "On Launchpad") {
+                time += effectiveDt; 
+                if (rocket.engineOn && currentThrustForce > 0) {
+                    const thrust_ay_potential = (currentThrustForce * Math.sin(rocket.angle)) / rocket.mass;
+                    const g_surface = MU_EARTH / (R_EARTH_METERS * R_EARTH_METERS);
+                    if (thrust_ay_potential > g_surface + 0.1) { rocket.status = "In Flight"; rocket.onSurface = false;}
+                    else {
+                        const dVConsumed = (currentThrustForce / rocket.mass) * effectiveDt;
+                        if (rocket.deltaVRemaining >= dVConsumed) rocket.deltaVRemaining -= dVConsumed; else { rocket.deltaVRemaining = 0; }
+                        if(rocket.deltaVRemaining <=0) { rocket.engineOn = false; engineToggleBtn.textContent = "Engine Off (No Fuel)"; engineToggleBtn.classList.remove('active'); engineToggleBtn.disabled = true;}
+                        return; 
+                    }
+                } else return; 
+            }
+            const r_sq = rocket.x * rocket.x + rocket.y * rocket.y; const r_mag = Math.sqrt(r_sq);
+            if (r_mag < R_EARTH_METERS && !rocket.onSurface) { rocket.status = "Impacted"; rocket.vx = 0; rocket.vy = 0; rocket.engineOn = false; engineToggleBtn.textContent = "Engine (Impacted)"; engineToggleBtn.classList.remove('active'); engineToggleBtn.disabled = true; statusMessage.textContent = rocket.status; return;}
+            if (r_mag > R_EARTH_METERS + 100) rocket.onSurface = false;
+            const grav_ax = (r_mag === 0) ? 0 : -MU_EARTH * rocket.x / (r_mag * r_sq); const grav_ay = (r_mag === 0) ? 0 : -MU_EARTH * rocket.y / (r_mag * r_sq);
+            let net_ax = grav_ax; let net_ay = grav_ay;
+            if (rocket.engineOn && currentThrustForce > 0 && rocket.deltaVRemaining > 0) {
+                let actualThrustForce = currentThrustForce; const dVConsumedThisFrame = (actualThrustForce / rocket.mass) * effectiveDt;
+                if (rocket.deltaVRemaining >= dVConsumedThisFrame) { rocket.deltaVRemaining -= dVConsumedThisFrame; } else { actualThrustForce *= (rocket.deltaVRemaining / dVConsumedThisFrame); rocket.deltaVRemaining = 0; }
+                net_ax += (actualThrustForce * Math.cos(rocket.angle)) / rocket.mass; net_ay += (actualThrustForce * Math.sin(rocket.angle)) / rocket.mass;
+                if(rocket.deltaVRemaining <=0) { rocket.engineOn = false; engineToggleBtn.textContent = "Engine Off (No Fuel)"; engineToggleBtn.classList.remove('active'); engineToggleBtn.disabled = true;}
+            } else if (rocket.engineOn && rocket.deltaVRemaining <= 0) { rocket.engineOn = false; engineToggleBtn.textContent = "Engine Off (No Fuel)"; engineToggleBtn.classList.remove('active'); engineToggleBtn.disabled = true;}
+            rocket.vx += net_ax * effectiveDt; rocket.vy += net_ay * effectiveDt;
+            rocket.x += rocket.vx * effectiveDt; rocket.y += rocket.vy * effectiveDt;
+            if (rocket.status !== "On Launchpad") time += effectiveDt; // Only advance flight time if not static on pad (launchpad state handles its own time += dt)
+            else if(rocket.status === "On Launchpad" && !(rocket.engineOn && currentThrustForce >0) ) time -= effectiveDt; // Correct double time count if returned early
+
+            if (rocket.status !== "On Launchpad" && (rocketTrail.length === 0 || time - (rocketTrail[rocketTrail.length-1]?.t || 0) > Math.max(0.05, 0.2 / timeScaleFactor) )) {
+                 rocketTrail.push({ x: rocket.x, y: rocket.y, t: time });
+                 if (rocketTrail.length > TRAIL_LENGTH) rocketTrail.shift();
+            }
+        }
+        
+        // Helper function to calculate orbital parameters from a state vector
+        function getOrbitalParamsFromState(state_x, state_y, state_vx, state_vy, isPrediction = false) {
+            const r_mag = Math.sqrt(state_x * state_x + state_y * state_y);
+            const v_sq = state_vx * state_vx + state_vy * state_vy;
+            let apText = "N/A", peText = "N/A";
+            let apClass = "", peClass = "";
+            let currentStatus = isPrediction ? "" : rocket.status; // Use rocket status unless it's a prediction
+
+            if ((isPrediction ? false : rocket.onSurface) || (r_mag <= R_EARTH_METERS + 1 && v_sq < 1.0 && (!isPrediction && time > baseGameTimeStep)) || r_mag < R_EARTH_METERS ) {
+                if (!isPrediction && rocket.onSurface && rocket.status !== "Impacted") currentStatus = "On Launchpad";
+            } else {
+                const h = state_x * state_vy - state_y * state_vx;
+                const specificOrbitalEnergy = v_sq / 2 - MU_EARTH / r_mag;
+
+                if (Math.abs(h) < 1e5 && r_mag > R_EARTH_METERS) { // Simplified radial check
+                    if (specificOrbitalEnergy >= 0) { 
+                        apText = "Infinity"; apClass = "escaped";
+                        const pe_alt_rad_esc = ((r_mag - R_EARTH_METERS)/1000);
+                        peText = pe_alt_rad_esc >= 0 ? pe_alt_rad_esc.toFixed(1) : "Impact";
+                        if (pe_alt_rad_esc < 0) peClass = "impact";
+                        if(!isPrediction && rocket.status !== "Impacted" && rocket.status !== "Escaped") currentStatus = "Escaped";
+                    } else { 
+                        const ra_radial = -MU_EARTH / (2 * specificOrbitalEnergy);
+                        const ap_alt_rad = ((ra_radial - R_EARTH_METERS)/1000);
+                        apText = ap_alt_rad >= 0 ? ap_alt_rad.toFixed(1) : "Impact";
+                        if (ap_alt_rad < 0) apClass = "impact";
+                        peText = "Impact"; peClass = "impact";
+                        if(!isPrediction && rocket.status !== "Impacted" && rocket.status !== "Escaped") currentStatus = "Suborbital (Impact)";
+                    }
+                } else { // Standard elliptical/hyperbolic path
+                    const e_vec_x = (state_vy * h) / MU_EARTH - state_x / r_mag;
+                    const e_vec_y = (-state_vx * h) / MU_EARTH - state_y / r_mag;
+                    const e = Math.sqrt(e_vec_x * e_vec_x + e_vec_y * e_vec_y);
+
+                    if (e < 1 && Math.abs(1 - e*e) > 1e-9 ) { 
+                        const a = (h * h) / (MU_EARTH * (1 - e * e)); 
+                        if (a < 0 && e < 1) { apText = "Calc Err"; peText = "Calc Err"; if(!isPrediction) currentStatus = "Orbit Error";}
+                        else {
+                            const ap_dist_c = a * (1 + e); const pe_dist_c = a * (1 - e);
+                            const ap_alt = (ap_dist_c - R_EARTH_METERS) / 1000; 
+                            const pe_alt = (pe_dist_c - R_EARTH_METERS) / 1000; 
+                            apText = ap_alt >= 0 ? ap_alt.toFixed(1) : "Impact"; 
+                            peText = pe_alt >= 0 ? pe_alt.toFixed(1) : "Impact";
+                            if (ap_alt < 0) apClass = "impact";
+                            if (pe_alt < 0) peClass = "impact";
+
+                            if (!isPrediction && rocket.status !== "Impacted" && rocket.status !== "Escaped") {
+                                let newStatus = currentStatus;
+                                if (pe_alt > 150 && ap_alt < 2000 && !(isPrediction ? false : rocket.onSurface)) { newStatus = "Stable LEO"; }
+                                else if (pe_alt > 0 && !(isPrediction ? false : rocket.onSurface)) { newStatus = "Elliptical Orbit"; }
+                                else if (!(isPrediction ? false : rocket.onSurface)) { newStatus = "Suborbital (Impact)"; }
+                                if ((isPrediction ? false : rocket.onSurface)) newStatus = "On Launchpad";
+                                currentStatus = newStatus;
+                            }
+                        }
+                    } else { // e >= 1 or near parabolic
+                        if (specificOrbitalEnergy >= -1e-1) { 
+                            const pe_dist_c = (h * h) / (MU_EARTH * (1 + e + 1e-9)); 
+                            const pe_alt = (pe_dist_c - R_EARTH_METERS) / 1000;
+                            apText = "Infinity"; apClass = 'escaped';
+                            peText = pe_alt >= 0 ? pe_alt.toFixed(1) : "Impact";
+                            if (pe_alt < 0) peClass = "impact";
+                            if (!isPrediction && rocket.status !== "Impacted" && rocket.status !== "Escaped") currentStatus = "Escaped";
+                        } else { 
+                            if(!isPrediction && rocket.status !== "Impacted" && rocket.status !== "Escaped") currentStatus = "Suborbital";
+                        }
+                    }
+                }
+            }
+             if (!isPrediction && currentStatus !== rocket.status) {
+                rocket.status = currentStatus; // Update main rocket status if changed
+                statusMessage.textContent = rocket.status;
+            }
+            return { apText, peText, apClass, peClass };
+        }
+
+
+        function calculateOrbitalParameters() {
+            const params = getOrbitalParamsFromState(rocket.x, rocket.y, rocket.vx, rocket.vy, false);
+            apoapsisDisplay.textContent = params.apText; apoapsisDisplay.className = "ap-pe-display " + params.apClass;
+            periapsisDisplay.textContent = params.peText; periapsisDisplay.className = "ap-pe-display " + params.peClass;
+        }
+
+
+        function drawPredictedTrajectory() { /* ... (use getOrbitalParamsFromState for predicted Ap/Pe) ... */
+            if (!trajectoryToggle.checked || !rocket || rocket.status === "Impacted" || rocket.onSurface || !PIXELS_PER_METER) {
+                projApoapsisDisplay.textContent = "N/A"; projPeriapsisDisplay.textContent = "N/A";
+                projApoapsisDisplay.className = "ap-pe-display"; projPeriapsisDisplay.className = "ap-pe-display";
+                return;
+            }
+
+            let ghostRocket = { x: rocket.x, y: rocket.y, vx: rocket.vx, vy: rocket.vy };
+            const predictionDt = baseGameTimeStep * 5 * Math.max(1, timeScaleFactor / 5); // Scale prediction step less aggressively
+            const numPredictionPoints = PREDICTION_STEPS / Math.max(1, Math.min(5, timeScaleFactor)); 
+            let predictedPathPoints = [{x: ghostRocket.x, y: ghostRocket.y}]; // Store points for drawing
+
+            for (let i = 0; i < numPredictionPoints; i++) {
+                const r_sq = ghostRocket.x * ghostRocket.x + ghostRocket.y * ghostRocket.y;
+                const r_mag = Math.sqrt(r_sq);
+                if (r_mag < R_EARTH_METERS) break; 
+                const grav_ax = (r_mag === 0) ? 0 : -MU_EARTH * ghostRocket.x / (r_mag * r_sq);
+                const grav_ay = (r_mag === 0) ? 0 : -MU_EARTH * ghostRocket.y / (r_mag * r_sq);
+                ghostRocket.vx += grav_ax * predictionDt; ghostRocket.vy += grav_ay * predictionDt;
+                ghostRocket.x += ghostRocket.vx * predictionDt; ghostRocket.y += ghostRocket.vy * predictionDt;
+                predictedPathPoints.push({x: ghostRocket.x, y: ghostRocket.y});
+            }
+            
+            // Calculate Ap/Pe of the final state of the ghost rocket
+            const predictedParams = getOrbitalParamsFromState(ghostRocket.x, ghostRocket.y, ghostRocket.vx, ghostRocket.vy, true);
+            projApoapsisDisplay.textContent = predictedParams.apText; projApoapsisDisplay.className = "ap-pe-display " + predictedParams.apClass;
+            projPeriapsisDisplay.textContent = predictedParams.peText; projPeriapsisDisplay.className = "ap-pe-display " + predictedParams.peClass;
+
+            // Draw the path
+            ctx.beginPath(); ctx.strokeStyle = 'rgba(0, 255, 255, 0.6)'; // Brighter Cyan
+            ctx.lineWidth = Math.max(1, 2 * PIXELS_PER_METER / (TARGET_VIEW_DIAMETER_METERS / (R_EARTH_METERS * 2.8 * 2))); // Thicker line
+            predictedPathPoints.forEach((p, index) => {
+                if (index === 0) ctx.moveTo(p.x * PIXELS_PER_METER, -p.y * PIXELS_PER_METER);
+                else ctx.lineTo(p.x * PIXELS_PER_METER, -p.y * PIXELS_PER_METER);
+            });
+            ctx.stroke();
+        }
+
+
+        function draw() { /* ... (draw Earth, LEO hint, rocket trail) ... */
+            if (!PIXELS_PER_METER || EARTH_RADIUS_PIXELS <=0 || !canvas || canvas.width === 0 || canvas.height === 0) return; 
+            ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.save();
+            ctx.translate(viewOffsetX, viewOffsetY); 
+
+            // Draw Earth with continents and ice caps
+            ctx.beginPath(); ctx.arc(0, 0, EARTH_RADIUS_PIXELS, 0, Math.PI * 2);
+            ctx.fillStyle = '#4070c0'; ctx.fill(); // Ocean blue
+
+            // Simplified Continents (example - can be expanded)
+            ctx.fillStyle = 'rgba(60, 160, 60, 0.8)'; // Green
+            // Continent 1 (Africa/Europe like)
+            ctx.beginPath(); ctx.ellipse(EARTH_RADIUS_PIXELS * 0.1, -EARTH_RADIUS_PIXELS * 0.2, EARTH_RADIUS_PIXELS * 0.3, EARTH_RADIUS_PIXELS * 0.45, Math.PI/6, 0, Math.PI*2); ctx.fill();
+            // Continent 2 (Americas like)
+            ctx.beginPath(); ctx.ellipse(-EARTH_RADIUS_PIXELS * 0.35, EARTH_RADIUS_PIXELS * 0.1, EARTH_RADIUS_PIXELS * 0.25, EARTH_RADIUS_PIXELS * 0.55, -Math.PI/8, 0, Math.PI*2); ctx.fill();
+            // Continent 3 (Asia/Australia like)
+            ctx.beginPath(); ctx.ellipse(EARTH_RADIUS_PIXELS * 0.4, EARTH_RADIUS_PIXELS * 0.3, EARTH_RADIUS_PIXELS * 0.3, EARTH_RADIUS_PIXELS * 0.2, Math.PI/4, 0, Math.PI*2); ctx.fill();
+
+
+            // Ice Caps
+            ctx.fillStyle = 'rgba(240, 248, 255, 0.9)'; // Alice blue for ice
+            ctx.beginPath(); // North Pole
+            ctx.arc(0, -EARTH_RADIUS_PIXELS * 0.93, EARTH_RADIUS_PIXELS * 0.25, Math.PI * 0.1 , Math.PI * 0.9); 
+            ctx.closePath(); ctx.fill();
+            ctx.beginPath(); // South Pole
+            ctx.arc(0, EARTH_RADIUS_PIXELS * 0.93, EARTH_RADIUS_PIXELS * 0.25, Math.PI * 1.1, Math.PI * 1.9);
+            ctx.closePath(); ctx.fill();
+
+
+            ctx.strokeStyle = '#a0c0ff'; // Earth outline
+            ctx.lineWidth = Math.max(1, 2 * PIXELS_PER_METER / (TARGET_VIEW_DIAMETER_METERS / (R_EARTH_METERS * 2.8 * 2))); 
+            ctx.beginPath(); ctx.arc(0, 0, EARTH_RADIUS_PIXELS, 0, Math.PI * 2); ctx.stroke(); // Redraw outline over continents
+            
+            // LEO Hint line
+            const LEO_ALTITUDE_METERS = 160000; 
+            ctx.beginPath(); ctx.arc(0, 0, EARTH_RADIUS_PIXELS + (LEO_ALTITUDE_METERS * PIXELS_PER_METER), 0, Math.PI * 2); 
+            ctx.strokeStyle = 'rgba(173, 216, 230, 0.1)'; 
+            ctx.lineWidth = Math.max(1, 1 * PIXELS_PER_METER / (TARGET_VIEW_DIAMETER_METERS / (R_EARTH_METERS * 2.8 * 2)));
+            ctx.stroke();
+
+            // Rocket Trail
+            if (rocketTrail.length > 1) {
+                ctx.beginPath(); ctx.strokeStyle = 'rgba(255, 255, 150, 0.7)'; 
+                ctx.lineWidth = Math.max(1, 2.5 * PIXELS_PER_METER / (TARGET_VIEW_DIAMETER_METERS / (R_EARTH_METERS * 2.8 * 2)));
+                const firstPoint = rocketTrail[0]; ctx.moveTo(firstPoint.x * PIXELS_PER_METER, -firstPoint.y * PIXELS_PER_METER);
+                for (let i = 1; i < rocketTrail.length; i++) { const p = rocketTrail[i]; ctx.lineTo(p.x * PIXELS_PER_METER, -p.y * PIXELS_PER_METER); }
+                ctx.stroke();
+            }
+            
+            drawPredictedTrajectory(); 
+
+            // Draw Rocket
+            if (rocket && (missionActive || rocket.status === "Escaped") && rocket.status !== "Impacted") { 
+                const rocketScreenX = rocket.x * PIXELS_PER_METER; const rocketScreenY = -rocket.y * PIXELS_PER_METER; 
+                const dynamicRocketScaleFactor = Math.max(0.7, Math.min(2, 350 * PIXELS_PER_METER)); 
+                const rktSize = ROCKET_SIZE_PIXELS_BASE * dynamicRocketScaleFactor;
+
+                ctx.save();
+                ctx.translate(rocketScreenX, rocketScreenY);
+                ctx.rotate(-rocket.angle + Math.PI / 2); 
+                
+                // Rocket Body (more detailed)
+                ctx.fillStyle = '#c0c0c0'; // Silver
+                ctx.beginPath();
+                ctx.moveTo(0, -rktSize * 2); // Tip of nose cone
+                ctx.lineTo(-rktSize * 0.5, -rktSize * 0.8); // Base of nose cone left
+                ctx.lineTo(-rktSize * 0.5, rktSize * 1.2);  // Bottom of body left
+                ctx.lineTo(-rktSize * 0.9, rktSize * 1.8);  // Fin outer left
+                ctx.lineTo(-rktSize * 0.7, rktSize * 1.2);  // Fin inner left
+                ctx.lineTo(rktSize * 0.7, rktSize * 1.2);   // Fin inner right
+                ctx.lineTo(rktSize * 0.9, rktSize * 1.8);   // Fin outer right
+                ctx.lineTo(rktSize * 0.5, rktSize * 1.2);   // Bottom of body right
+                ctx.lineTo(rktSize * 0.5, -rktSize * 0.8);  // Base of nose cone right
+                ctx.closePath();
+                ctx.fill();
+                ctx.strokeStyle = '#505050'; ctx.lineWidth = 0.5 * dynamicRocketScaleFactor; ctx.stroke();
+
+
+                if (rocket.engineOn && rocket.throttle > 0) {
+                    ctx.fillStyle = `rgba(255, ${180 + Math.random()*75}, 0, ${0.7 + rocket.throttle*0.3})`;
+                    const flameLength = rktSize * 3.5 * rocket.throttle * (0.7 + Math.random()*0.6); // Longer flame
+                    const flameWidth = rktSize * 1.0 * rocket.throttle; // Wider flame base
+                    ctx.beginPath(); 
+                    ctx.moveTo(0, rktSize * 1.2); 
+                    ctx.lineTo(-flameWidth / 1.5, rktSize * 1.2 + flameLength * 0.6);
+                    ctx.lineTo(0, rktSize*1.2 + flameLength);
+                    ctx.lineTo(flameWidth / 1.5, rktSize*1.2 + flameLength * 0.6);
+                    ctx.closePath(); ctx.fill();
+                }
+                ctx.restore();
+            }
+            ctx.restore(); 
+        }
+
+
+        function updateUI() { 
+            if(!rocket || Object.keys(rocket).length === 0) return; 
+            const fuelLineP = document.getElementById('fuelLine');
+            if (fuelLineP) fuelLineP.childNodes[0].nodeValue = "Fuel Rem.: ";
+
+
+            timeDisplay.textContent = time.toFixed(1);
+            deltaVDisplay.textContent = rocket.deltaVRemaining.toFixed(0);
+            const r = Math.sqrt(rocket.x * rocket.x + rocket.y * rocket.y);
+            const alt_km = Math.max(0, (r - R_EARTH_METERS) / 1000); 
+            altitudeDisplay.textContent = alt_km.toFixed(1);
+            const vel_mag = Math.sqrt(rocket.vx * rocket.vx + rocket.vy * rocket.vy);
+            velocityDisplay.textContent = vel_mag.toFixed(1);
+            let displayAngleDeg = (rocket.angle * 180 / Math.PI);
+            displayAngleDeg = (displayAngleDeg % 360 + 360) % 360; 
+            orientationDisplay.textContent = displayAngleDeg.toFixed(0);
+            throttleValueDisplay.textContent = (rocket.throttle * 100).toFixed(0);
+            statusMessage.textContent = rocket.status;
+        }
+        
+        function gameLoop() { /* ... (same) ... */ 
+            updateRocketPhysics(); calculateOrbitalParameters(); draw(); updateUI();
+            if (missionActive) animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        // --- Event Listeners ---
+        engineToggleBtn.addEventListener('click', () => { /* ... (same) ... */ 
+            if (rocket.deltaVRemaining <= 0 && !rocket.engineOn) { engineToggleBtn.disabled = true; return; }
+            if (rocket.status === "Impacted") return;
+            rocket.engineOn = !rocket.engineOn;
+            engineToggleBtn.textContent = rocket.engineOn ? "Cutoff Engine" : "Ignite Engine";
+            engineToggleBtn.classList.toggle('active', rocket.engineOn);
+        });
+        throttleSlider.addEventListener('input', (e) => rocket.throttle = parseFloat(e.target.value) / 100 );
+        const ROTATION_SPEED = 0.07; 
+        rotateCCWBtn.addEventListener('click', () => { if(missionActive && rocket && rocket.status !== "Impacted") rocket.angle += ROTATION_SPEED; });
+        rotateCWBtn.addEventListener('click', () => { if(missionActive && rocket && rocket.status !== "Impacted") rocket.angle -= ROTATION_SPEED; });
+        
+        timeWarpControls.addEventListener('click', (e) => { /* ... (same) ... */
+            if (e.target.tagName === 'BUTTON' && e.target.dataset.warp) {
+                timeScaleFactor = parseFloat(e.target.dataset.warp);
+                document.querySelectorAll('.time-warp-controls button').forEach(btn => btn.classList.remove('active-warp'));
+                e.target.classList.add('active-warp');
+            }
+        });
+        
+        missionSelect.addEventListener('change', updateMissionObjectiveDisplay);
+
+
+        resetMissionBtn.addEventListener('click', () => { /* ... (same) ... */
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            missionActive = false; 
+            resizeCanvas(); 
+            resetRocketState(); 
+            timeScaleFactor = 1; 
+            document.querySelectorAll('.time-warp-controls button').forEach(btn => btn.classList.remove('active-warp'));
+            const defaultWarpBtn = document.querySelector('.time-warp-controls button[data-warp="1"]');
+            if (defaultWarpBtn) defaultWarpBtn.classList.add('active-warp');
+            missionActive = true; 
+            animationFrameId = requestAnimationFrame(gameLoop);
+        });
+        
+        function initialSetup() { /* ... (same, calls updateMissionObjectiveDisplay via resetRocketState) ... */
+            resizeCanvas(); 
+            resetRocketState(); 
+            draw();             
+            updateUI();           
+            const initialWarpBtn = document.querySelector('.time-warp-controls button[data-warp="1"]');
+            if (initialWarpBtn) initialWarpBtn.classList.add('active-warp');
+            if (!animationFrameId) { missionActive = true; animationFrameId = requestAnimationFrame(gameLoop);}
+        }
+
+        window.addEventListener('DOMContentLoaded', initialSetup);
+        window.addEventListener('resize', () => { /* ... (same) ... */ 
+            const wasActive = missionActive;
+            if (animationFrameId) cancelAnimationFrame(animationFrameId); 
+            missionActive = false; resizeCanvas();
+            if (rocket && Object.keys(rocket).length > 0) draw();
+            if (wasActive) { missionActive = true; animationFrameId = requestAnimationFrame(gameLoop); }
+            else if (rocket && Object.keys(rocket).length > 0) { updateUI(); }
+        });
+
+    </script>
+</body>
+</html>
