@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Smartboard Display</title>
+    <style>
+        :root {
+             --table-border-style: 1px solid #557;
+             --table-font-size: 1em;
+             --table-text-color: #eee;
+             --table-alt-row-bg: transparent;
+        }
+        body { margin: 0; height: 100vh; width: 100vw; background-color: #000020; /* Fallback, JS will set gradient */ overflow: hidden; font-family: sans-serif; color: white; position: relative; cursor: none; user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; }
+        #scene { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+        
+        #topContainer, #bottomContainer { position: absolute; width: 100%; padding: 40px; box-sizing: border-box; display: flex; flex-direction: column; z-index: 5; pointer-events: none; }
+        #topContainer { top: 0; }
+        #bottomContainer { bottom: 0; }
+        #headingWrapper, #tableWrapperElement { pointer-events: auto; width: fit-content; max-width: 90%; }
+
+        h1#estrellaHeading { font-size: 6rem; z-index: 10; text-align: center; transition: font-size 0.2s ease-out, display 0.3s ease, opacity 0.3s ease, color 0.3s, text-shadow 0.3s; margin: 20px; }
+        #customCursor { position: fixed; z-index: 501; pointer-events: none; transform: translate(-50%, -50%); background-color: #fff; opacity: 1; transition: opacity 0.2s ease, width 0.1s ease, height 0.1s ease, box-shadow 0.2s ease, background-color 0.2s ease, border-color 0.2s ease; }
+        .visual-star { position: absolute; pointer-events: none; opacity: 0.9; animation-iteration-count: infinite; animation-timing-function: linear; transform-origin: center center; transition: width 0.2s ease, height 0.2s ease, box-shadow 0.2s ease, background-color 0.3s ease, border-color 0.3s ease, opacity 0.1s linear; box-shadow: none; }
+        .shape-circle { border-radius: 50%; } .shape-square { border-radius: 0; } .shape-star { background-color: #fff; clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); } .shape-ring { background-color: transparent !important; border: 2px solid #fff; border-radius: 50%; }
+        @keyframes pulse { 0%, 100% { transform: scale(0.6); opacity: 0.5; } 50% { transform: scale(1.5); opacity: 1; } } @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } } @keyframes fade { 0%, 100% { opacity: 0.1; } 50% { opacity: 1.0; } } @keyframes drift { 0% { transform: translate(0px, 0px) rotate(0deg); } 25% { transform: translate(10px, 6px) rotate(18deg); } 50% { transform: translate(-6px, 12px) rotate(-12deg); } 75% { transform: translate(-12px, -5px) rotate(10deg); } 100% { transform: translate(0px, 0px) rotate(0deg); } }
+        .anim-pulse { animation-name: pulse; } .anim-spin { animation-name: spin; } .anim-fade { animation-name: fade; } .anim-drift { animation-name: drift; }
+        .mouse-trail-particle { position: fixed; opacity: 1; pointer-events: none; z-index: 250; animation: fade-out-quick linear forwards; transform-origin: center center; transform: translate(-50%, -50%); object-fit: cover; } @keyframes fade-out-quick { from { opacity: 1; transform: translate(-50%,-50%) scale(1); } to { opacity: 0; transform: translate(-50%,-50%) scale(0.2); } }
+        .click-explosion-particle { position: fixed; opacity: 1.0; pointer-events: none; z-index: 180; animation: explode-fade ease-out forwards; transform-origin: center center; } @keyframes explode-fade { 0% { opacity: 1; transform: scale(1) translate(0, 0); } 100% { opacity: 0; transform: scale(0.1) translate(var(--tx, 0px), var(--ty, 0px)); } }
+        @keyframes fadeAndShrink { 0% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(0.5); } } .click-image { position: fixed; border-radius: 8px; object-fit: cover; box-shadow: 0 0 12px rgba(255, 255, 255, 0.6); z-index: 100; pointer-events: none; animation: fadeAndShrink linear forwards; transform-origin: center center; } .click-image.circular { border-radius: 50%; }
+        #audioButton { width: 100%; padding: 10px 15px; font-size: 1em; cursor: pointer; background-color: #335; color: white; border: 1px solid #557; border-radius: 5px; transition: background-color 0.2s; } #audioButton:hover { background-color: #447; } #audioButton:disabled { background-color: #111; color: #777; cursor: not-allowed; }
+        
+        #tableContainer { display: flex; flex-direction: column; width: 80%; max-width: 700px; max-height: 45vh; background-color: rgba(255, 255, 255, 0.05); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(2px); transition: display 0.3s ease, opacity 0.3s ease; margin: 20px; }
+        #tableWrapper { overflow: auto; padding: 5px; }
+        #dataTable { width: 100%; border-collapse: collapse; font-size: var(--table-font-size); color: var(--table-text-color); }
+        #dataTable thead th, #dataTable tbody td { padding: 8px 10px; border: var(--table-border-style); transition: background-color 0.2s ease; }
+        #dataTable thead th { text-align: left; color: #adf; font-size: 0.9em; user-select: none; }
+        #dataTable tbody tr:nth-child(even) { background-color: var(--table-alt-row-bg); }
+        #dataTable tbody tr:hover { background-color: rgba(0, 0, 0, 0.1); }
+        #dataTable .cell-content { outline: none; padding: 4px 6px; border-radius: 3px; background-color: transparent; border: 1px solid transparent; cursor: text; min-height: 1.2em; display: inline-block; width: 95%; color: inherit; font-size: inherit; }
+        #dataTable .cell-content:focus { background-color: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.3); }
+        #tableControls { display: flex; justify-content: center; gap: 10px; padding: 10px; border-top: 1px solid #557; }
+        #tableControls button { padding: 6px 14px; font-size: 0.85em; color: white; border: none; border-radius: 5px; cursor: pointer; transition: background-color 0.2s ease; }
+        .btn-add { background-color: #4a4a88; } .btn-add:hover { background-color: #5a5ab8; }
+        .btn-remove { background-color: #884a4a; } .btn-remove:hover { background-color: #b85a5a; }
+        .btn-action { background-color: #4a884a; } .btn-action:hover { background-color: #5ab85a; }
+
+        #graphContainer { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(10, 10, 30, 0.9); z-index: 400; justify-content: center; align-items: center; backdrop-filter: blur(5px); }
+        #graphBox { background-color: #1a1a2e; padding: 30px 40px; border-radius: 10px; border: 1px solid #557; box-shadow: 0 5px 25px rgba(0,0,0,0.5); display: flex; gap: 15px; align-items: flex-end; height: 60vh; max-width: 80vw; }
+        .graph-bar-wrapper { display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
+        .graph-bar { width: 40px; background-color: #4a4a88; border: 1px solid #adf; border-bottom: none; border-radius: 5px 5px 0 0; transition: height 0.5s ease-out; position: relative; }
+        .graph-bar:hover { background-color: #6a6ac8; }
+        .graph-value { position: absolute; top: -22px; width: 100%; text-align: center; color: #fff; font-size: 0.9em; }
+        .graph-label { margin-top: 8px; color: #ccc; font-size: 0.9em; }
+        #closeGraphBtn { position: absolute; top: 30px; right: 40px; font-size: 1.5em; background: none; border: none; color: #fff; cursor: pointer; }
+
+        #settingsMenu { display: none; position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); background-color: rgba(30, 30, 50, 0.95); border: 1px solid #779; border-radius: 10px; z-index: 500; color: #eee; box-shadow: 0 5px 25px rgba(0,0,0,0.5); width: 520px; max-height: 90vh; flex-direction: column; }
+        #settingsTabs { display: flex; border-bottom: 1px solid #557; padding: 0 10px; flex-shrink: 0; }
+        .tab-button { padding: 12px 15px; background: none; border: none; color: #aaa; font-size: 0.95em; cursor: pointer; transition: color 0.2s, border-bottom 0.2s; border-bottom: 3px solid transparent; margin-bottom: -1px; }
+        .tab-button.active-tab { color: #fff; border-bottom-color: #adf; }
+        .tab-button:hover { color: #ddd; }
+        #settingsContent { padding: 20px 30px; overflow-y: auto; }
+        .sub-menu { display: none; } .sub-menu.active-sub-menu { display: block; }
+        .setting { margin-bottom: 18px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; } .setting label { flex-basis: 45%; margin-right: 10px; font-size: 0.9em; } .setting input[type="range"], .setting select, .setting input[type="color"] { flex-grow: 1; margin: 0 5px; } .setting input[type="text"] { flex-grow: 1; padding: 5px 8px; border: 1px solid #557; background-color: #1a1a2e; color: #eee; border-radius: 4px; } .setting select { padding: 6px 8px; border: 1px solid #557; background-color: #1a1a2e; color: #eee; border-radius: 4px; cursor: pointer; } .setting input[type="color"] { padding: 2px 4px; border: 1px solid #557; background-color: #1a1a2e; border-radius: 4px; cursor: pointer; min-height: 28px; } .setting input[type="checkbox"] { margin-left: 10px; cursor: pointer; transform: scale(1.2); } .setting label.checkbox-label { flex-basis: auto; margin-right: 5px;} .setting .value-display { min-width: 60px; text-align: right; font-weight: bold; color: #adf; font-size: 0.9em; }
+        #settingsMenu p.close-instruction { font-size: 0.85em; text-align: center; margin-top: 25px; color: #aaa; padding: 10px 0; }
+    </style>
+</head>
+<body>
+    <div id="customCursor"></div>
+    <div id="scene"></div>
+    <div id="topContainer"></div>
+    <div id="bottomContainer"></div>
+
+    <div id="graphContainer">
+        <div id="graphBox"></div>
+        <button id="closeGraphBtn">&times;</button>
+    </div>
+    
+    <div id="settingsMenu">
+        <div id="settingsTabs">
+            <button class="tab-button active-tab" data-target="displaySettings">Display</button>
+            <button class="tab-button" data-target="shapeSettings">Shapes</button>
+            <button class="tab-button" data-target="clickSettings">Click/Mouse</button>
+            <button class="tab-button" data-target="listSettings">Table</button>
+            <button class="tab-button" data-target="audioSettings">Audio</button>
+            <button class="tab-button" data-target="backgroundSettings">Background</button>
+        </div>
+
+        <div id="settingsContent">
+            <div class="sub-menu active-sub-menu" id="displaySettings">
+                 <h3>Display & Layout Settings</h3>
+                 <div class="setting"> <label class="checkbox-label" for="showMainTextToggle">Show Main Text:</label> <input type="checkbox" id="showMainTextToggle"> </div>
+                 <div class="setting"> <label class="checkbox-label" for="showTableToggle">Show Table:</label> <input type="checkbox" id="showTableToggle"> </div>
+                 <hr style="border-color: #446; margin: 20px 0;">
+                 <div class="setting"> <label for="headingVerticalSelect">Text Vertical Position:</label> <select id="headingVerticalSelect"><option value="top">Top</option><option value="bottom">Bottom</option></select> </div>
+                 <div class="setting"> <label for="headingAlignSelect">Text Alignment:</label> <select id="headingAlignSelect"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select> </div>
+                 <hr style="border-color: #446; margin: 15px 0;">
+                 <div class="setting"> <label for="tableVerticalSelect">Table Vertical Position:</label> <select id="tableVerticalSelect"><option value="top">Top</option><option value="bottom">Bottom</option></select> </div>
+                 <div class="setting"> <label for="tableAlignSelect">Table Alignment:</label> <select id="tableAlignSelect"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select> </div>
+                 <hr style="border-color: #446; margin: 20px 0;">
+                 <div class="setting"> <label for="mainTextInput">Main Text:</label> <input type="text" id="mainTextInput"> </div>
+                 <div class="setting"> <label for="textSizeSlider">Text Size:</label> <input type="range" id="textSizeSlider" min="2" max="25" step="0.5"> <span class="value-display" id="textSizeValue"></span> </div>
+                 <div class="setting"> <label for="mainTextColorInput">Text Color:</label> <input type="color" id="mainTextColorInput"> </div>
+                 <div class="setting"> <label for="mainTextGlowColorInput">Text Glow Color:</label> <input type="color" id="mainTextGlowColorInput"> </div>
+            </div>
+            <div class="sub-menu" id="shapeSettings">
+                <h3>Background Shape Settings</h3>
+                 <div class="setting"> <label for="starCountSlider">Number of Shapes (Max 1000):</label> <input type="range" id="starCountSlider" min="10" max="1000" step="10"> <span class="value-display" id="starCountValue"></span> </div>
+                 <div class="setting"> <label for="spawnPatternSelect">Spawn Pattern:</label> <select id="spawnPatternSelect"> <option value="big-bang">Big Bang</option> <option value="rainfall">Rainfall</option> <option value="fountain">Fountain</option> <option value="whirlpool">Whirlpool</option> <option value="corners">Corners</option> <option value="galaxy">Galaxy</option> </select> </div>
+                 <div class="setting"> <label for="movementSpeedSlider">Movement Speed:</label> <input type="range" id="movementSpeedSlider" min="0.1" max="5" step="0.1"> <span class="value-display" id="movementSpeedValue"></span> </div>
+                 <div class="setting"> <label class="checkbox-label" for="gravityToggle">Enable Gravity:</label> <input type="checkbox" id="gravityToggle"> </div>
+                 <div class="setting"> <label for="minShapeSizeSlider">Min Shape Size:</label> <input type="range" id="minShapeSizeSlider" min="3" max="100" step="1"> <span class="value-display" id="minShapeSizeValue"></span> </div>
+                 <div class="setting"> <label for="maxShapeSizeSlider">Max Shape Size:</label> <input type="range" id="maxShapeSizeSlider" min="3" max="100" step="1"> <span class="value-display" id="maxShapeSizeValue"></span> </div>
+                 <div class="setting"> <label for="shapeColorInput">Shape Color:</label> <input type="color" id="shapeColorInput"> </div>
+                 <div class="setting"> <label for="starShapeSelect">Shape Type:</label> <select id="starShapeSelect"> <option value="shape-circle">Circle</option><option value="shape-square">Square</option><option value="shape-star">Star</option><option value="shape-ring">Ring</option> </select> </div>
+                 <div class="setting"> <label for="starAnimationSelect">Shape Animation:</label> <select id="starAnimationSelect"> <option value="anim-pulse">Pulse</option><option value="anim-fade">Fade</option><option value="anim-spin">Spin</option><option value="anim-drift">Drift</option><option value="anim-bounce">Physics Only</option><option value="anim-none">None (Static)</option> </select> </div>
+                 <div class="setting"> <label class="checkbox-label" for="shapeBloomToggle">Enable Shape Bloom:</label> <input type="checkbox" id="shapeBloomToggle"> </div>
+                 <div class="setting"> <label for="bloomIntensitySlider">Bloom Intensity:</label> <input type="range" id="bloomIntensitySlider" min="0" max="30" step="1"> <span class="value-display" id="bloomIntensityValue"></span> </div>
+            </div>
+             <div class="sub-menu" id="audioSettings">
+                 <h3>Audio Reactive Settings</h3>
+                 <p style="font-size:0.85em; color: #bbb; text-align: center; margin-bottom: 15px;">Requires enabling audio via the button.</p>
+                 <div class="setting"> <button id="audioButton">Enable Audio Interaction</button> </div>
+                 <hr style="border-color: #446; margin: 20px 0;">
+                 <div class="setting"> <label for="micMinScaleSlider">Mic: Min Scale:</label> <input type="range" id="micMinScaleSlider" min="0.1" max="2.0" step="0.1"> <span class="value-display" id="micMinScaleValue"></span> </div>
+                 <div class="setting"> <label for="micMaxScaleSlider">Mic: Max Scale:</label> <input type="range" id="micMaxScaleSlider" min="0.5" max="5.0" step="0.1"> <span class="value-display" id="micMaxScaleValue"></span> </div>
+             </div>
+             <div class="sub-menu" id="clickSettings">
+                 <h3>Click & Mouse Settings</h3>
+                 <div class="setting image-url-setting"> <label for="imageUrlInput">Image URL (.jpg, .png, .gif):</label> <input type="url" id="imageUrlInput" placeholder="Paste image link here"> </div>
+                 <div class="setting"> <label for="imageSizeSlider">Click Image Size:</label> <input type="range" id="imageSizeSlider" min="10" max="600" step="5"> <span class="value-display" id="imageSizeValue"></span> </div>
+                 <div class="setting"> <label for="fadeDurationSlider">Click Image Fade:</label> <input type="range" id="fadeDurationSlider" min="0.2" max="20.0" step="0.1"> <span class="value-display" id="fadeDurationValue"></span> </div>
+                 <div class="setting"> <label class="checkbox-label" for="imageShapeToggle">Click Image Circular?</label> <input type="checkbox" id="imageShapeToggle"> </div>
+                 <div class="setting"> <label class="checkbox-label" for="persistImageToggle">Keep Clicked Image?</label> <input type="checkbox" id="persistImageToggle"> </div>
+                 <hr style="border-color: #446; margin: 20px 0;">
+                 <div class="setting"> <label class="checkbox-label" for="clickExplosionToggle">Enable Click Explosion:</label> <input type="checkbox" id="clickExplosionToggle"> </div>
+                 <div class="setting"> <label for="explosionSizeSlider">Explosion Size:</label> <input type="range" id="explosionSizeSlider" min="0.1" max="2.0" step="0.1"> <span class="value-display" id="explosionSizeValue"></span> </div>
+                 <div class="setting"> <label for="explosionSpreadSlider">Explosion Spread:</label> <input type="range" id="explosionSpreadSlider" min="20" max="200" step="5"> <span class="value-display" id="explosionSpreadValue"></span> </div>
+                 <div class="setting"> <label for="explosionDurationSlider">Explosion Duration:</label> <input type="range" id="explosionDurationSlider" min="300" max="2000" step="50"> <span class="value-display" id="explosionDurationValue"></span> </div>
+                 <hr style="border-color: #446; margin: 20px 0;">
+                 <div class="setting"> <label class="checkbox-label" for="showCustomCursorToggle">Show Custom Cursor:</label> <input type="checkbox" id="showCustomCursorToggle"> </div>
+                 <div class="setting"> <label for="cursorShapeSelect">Cursor Shape:</label> <select id="cursorShapeSelect"> <option value="shape-circle">Circle</option><option value="shape-square">Square</option><option value="shape-star">Star</option><option value="shape-ring">Ring</option> </select> </div>
+                 <div class="setting"> <label for="cursorSizeSlider">Custom Cursor Size:</label> <input type="range" id="cursorSizeSlider" min="5" max="100" step="1"> <span class="value-display" id="cursorSizeValue"></span> </div>
+                 <div class="setting"> <label class="checkbox-label" for="mouseTrailToggle">Enable Mouse Trail:</label> <input type="checkbox" id="mouseTrailToggle"> </div>
+                 <div class="setting"> <label class="checkbox-label" for="useImageForTrailToggle">Use Image for Trail:</label> <input type="checkbox" id="useImageForTrailToggle"> </div>
+                 <div class="setting"> <label for="trailSizeSlider">Trail Particle Size:</label> <input type="range" id="trailSizeSlider" min="1" max="50" step="1"> <span class="value-display" id="trailSizeValue"></span> </div>
+                 <div class="setting"> <label for="trailDurationSlider">Trail Fade Duration:</label> <input type="range" id="trailDurationSlider" min="0.1" max="3.0" step="0.1"> <span class="value-display" id="trailDurationValue"></span> </div>
+             </div>
+              <div class="sub-menu" id="listSettings">
+                  <h3>Table Settings</h3>
+                   <div class="setting"> <label class="checkbox-label" for="showTableBordersToggle">Show Table Borders:</label> <input type="checkbox" id="showTableBordersToggle"> </div>
+                   <div class="setting"> <label for="tableFontSizeSlider">Table Font Size:</label> <input type="range" id="tableFontSizeSlider" min="8" max="24" step="1"> <span class="value-display" id="tableFontSizeValue"></span> </div>
+                   <div class="setting"> <label for="tableTextColorInput">Table Text Color:</label> <input type="color" id="tableTextColorInput"> </div>
+                   <div class="setting"> <label class="checkbox-label" for="tableAltRowToggle">Alternating Row Colors:</label> <input type="checkbox" id="tableAltRowToggle"> </div>
+              </div>
+              <div class="sub-menu" id="backgroundSettings">
+                  <h3>Background Settings</h3>
+                  <div class="setting"> <label for="bgColorTopInput">Gradient Top:</label> <input type="color" id="bgColorTopInput"> </div>
+                  <div class="setting"> <label for="bgColorBottomInput">Gradient Bottom:</label> <input type="color" id="bgColorBottomInput"> </div>
+              </div>
+        </div>
+        <p class="close-instruction">(Press 'Esc' to Close)</p>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // --- Element Selectors ---
+            const body = document.body; const scene = document.getElementById('scene'); const topContainer = document.getElementById('topContainer'); const bottomContainer = document.getElementById('bottomContainer'); const customCursor = document.getElementById('customCursor'); const settingsMenu = document.getElementById('settingsMenu'); const settingsTabsContainer = document.getElementById('settingsTabs'); const settingsContent = document.getElementById('settingsContent'); const graphContainer = document.getElementById('graphContainer'); const graphBox = document.getElementById('graphBox'); const closeGraphBtn = document.getElementById('closeGraphBtn');
+            const showMainTextToggle = document.getElementById('showMainTextToggle'); const showTableToggle = document.getElementById('showTableToggle'); const headingVerticalSelect = document.getElementById('headingVerticalSelect'); const headingAlignSelect = document.getElementById('headingAlignSelect'); const tableVerticalSelect = document.getElementById('tableVerticalSelect'); const tableAlignSelect = document.getElementById('tableAlignSelect'); const mainTextInput = document.getElementById('mainTextInput'); const textSizeSlider = document.getElementById('textSizeSlider'); const textSizeValue = document.getElementById('textSizeValue'); const mainTextColorInput = document.getElementById('mainTextColorInput'); const mainTextGlowColorInput = document.getElementById('mainTextGlowColorInput');
+            const starCountSlider = document.getElementById('starCountSlider'); const starCountValue = document.getElementById('starCountValue'); const spawnPatternSelect = document.getElementById('spawnPatternSelect'); const movementSpeedSlider = document.getElementById('movementSpeedSlider'); const movementSpeedValue = document.getElementById('movementSpeedValue'); const gravityToggle = document.getElementById('gravityToggle'); const minShapeSizeSlider = document.getElementById('minShapeSizeSlider'); const minShapeSizeValue = document.getElementById('minShapeSizeValue'); const maxShapeSizeSlider = document.getElementById('maxShapeSizeSlider'); const maxShapeSizeValue = document.getElementById('maxShapeSizeValue'); const shapeColorInput = document.getElementById('shapeColorInput'); const starShapeSelect = document.getElementById('starShapeSelect'); const starAnimationSelect = document.getElementById('starAnimationSelect'); const shapeBloomToggle = document.getElementById('shapeBloomToggle'); const bloomIntensitySlider = document.getElementById('bloomIntensitySlider'); const bloomIntensityValue = document.getElementById('bloomIntensityValue');
+            const audioButton = document.getElementById('audioButton'); const micMinScaleSlider = document.getElementById('micMinScaleSlider'); const micMinScaleValue = document.getElementById('micMinScaleValue'); const micMaxScaleSlider = document.getElementById('micMaxScaleSlider'); const micMaxScaleValue = document.getElementById('micMaxScaleValue');
+            const imageUrlInput = document.getElementById('imageUrlInput'); const imageSizeSlider = document.getElementById('imageSizeSlider'); const imageSizeValue = document.getElementById('imageSizeValue'); const fadeDurationSlider = document.getElementById('fadeDurationSlider'); const fadeDurationValue = document.getElementById('fadeDurationValue'); const imageShapeToggle = document.getElementById('imageShapeToggle'); const clickExplosionToggle = document.getElementById('clickExplosionToggle'); const persistImageToggle = document.getElementById('persistImageToggle'); const explosionSizeSlider = document.getElementById('explosionSizeSlider'); const explosionSizeValue = document.getElementById('explosionSizeValue'); const explosionSpreadSlider = document.getElementById('explosionSpreadSlider'); const explosionSpreadValue = document.getElementById('explosionSpreadValue'); const explosionDurationSlider = document.getElementById('explosionDurationSlider'); const explosionDurationValue = document.getElementById('explosionDurationValue');
+            const showCustomCursorToggle = document.getElementById('showCustomCursorToggle'); const cursorShapeSelect = document.getElementById('cursorShapeSelect'); const cursorSizeSlider = document.getElementById('cursorSizeSlider'); const cursorSizeValue = document.getElementById('cursorSizeValue'); const mouseTrailToggle = document.getElementById('mouseTrailToggle'); const useImageForTrailToggle = document.getElementById('useImageForTrailToggle'); const trailSizeSlider = document.getElementById('trailSizeSlider'); const trailSizeValue = document.getElementById('trailSizeValue'); const trailDurationSlider = document.getElementById('trailDurationSlider'); const trailDurationValue = document.getElementById('trailDurationValue');
+            const showTableBordersToggle = document.getElementById('showTableBordersToggle'); const tableFontSizeSlider = document.getElementById('tableFontSizeSlider'); const tableFontSizeValue = document.getElementById('tableFontSizeValue'); const tableTextColorInput = document.getElementById('tableTextColorInput'); const tableAltRowToggle = document.getElementById('tableAltRowToggle');
+            const bgColorTopInput = document.getElementById('bgColorTopInput'); const bgColorBottomInput = document.getElementById('bgColorBottomInput');
+
+            // --- State Variables ---
+            let mainTextContent = 'Welcome!', estrellaTextSizeRem = 6, mainTextColor = '#FFFFFF', mainTextGlowColor = '#FFD700';
+            let numStars = 150, spawnPattern = 'big-bang', movementSpeed = 1.0, gravityEnabled = false, minShapeSize = 15, maxShapeSize = 30, shapeBaseColor = '#FFFFFF', selectedShapeClass = 'shape-circle', selectedAnimClass = 'anim-pulse';
+            let micMinScale = 0.7, micMaxScale = 2.0; let shapeBloomEnabled = true, bloomIntensity = 20;
+            let clickImageSize = 60, clickImageFadeDurationSec = 1.0, clickImageIsCircular = false;
+            let clickExplosionEnabled = true, persistClickedImage = false, clickExplosionSizeMultiplier = 0.6, clickExplosionSpread = 80, clickExplosionDurationMs = 600;
+            let mouseTrailEnabled = true, useImageForTrail = false, trailParticleSize = 6, trailFadeDurationSec = 0.4;
+            let showMainText = true, showTable = false, showCustomCursor = true, customCursorSize = 20, cursorShapeClass = 'shape-circle';
+            let showTableBorders = true, tableFontSizePx = 16, tableTextColor = '#EEEEEE', tableAltRowColorEnabled = true;
+            let bgColorTop = '#FFFFFF', bgColorBottom = '#2807FF';
+
+            const possibleShapeClasses = ['shape-circle', 'shape-square', 'shape-star', 'shape-ring'];
+            const possibleAnimClasses = ['anim-pulse', 'anim-fade', 'anim-spin', 'anim-drift', 'anim-bounce', 'anim-none'];
+            const MAX_VELOCITY = 6;
+            let stars = [], lastTrailTime = 0, currentPersistentImage = null, currentImageUrl = '';
+            let audioContext, analyser, microphone, dataArray, audioEnabled = false;
+
+            // --- Dynamic Element Creation ---
+            const headingWrapper = document.createElement('div'); headingWrapper.id = 'headingWrapper'; const estrellaHeading = document.createElement('h1'); estrellaHeading.id = 'estrellaHeading'; headingWrapper.appendChild(estrellaHeading);
+            const tableWrapperElement = document.createElement('div'); tableWrapperElement.id = 'tableWrapperElement'; const tableContainer = document.createElement('div'); tableContainer.id = 'tableContainer';
+            tableContainer.innerHTML = `<div id="tableWrapper"><table id="dataTable"><thead id="dataThead"></thead><tbody id="dataTbody"></tbody></table></div><div id="tableControls"><button id="addRowBtn" class="btn-add">+ Row</button><button id="removeRowBtn" class="btn-remove">- Row</button><button id="addColBtn" class="btn-add">+ Col</button><button id="removeColBtn" class="btn-remove">- Col</button><button id="generateGraphBtn" class="btn-action">Generate Graph</button></div>`;
+            tableWrapperElement.appendChild(tableContainer);
+            const dataThead = tableContainer.querySelector('#dataThead'); const dataTbody = tableContainer.querySelector('#dataTbody'); const addRowBtn = tableContainer.querySelector('#addRowBtn'); const removeRowBtn = tableContainer.querySelector('#removeRowBtn'); const addColBtn = tableContainer.querySelector('#addColBtn'); const removeColBtn = tableContainer.querySelector('#removeColBtn'); const generateGraphBtn = tableContainer.querySelector('#generateGraphBtn');
+
+            // --- Core Functions ---
+            function toggleSettingsMenu() { settingsMenu.style.display = settingsMenu.style.display === 'flex' ? 'none' : 'flex'; }
+            function switchSettingTab(event) { if (!event.target.classList.contains('tab-button')) return; const targetId = event.target.dataset.target; settingsTabsContainer.querySelectorAll('.tab-button').forEach(b => b.classList.toggle('active-tab', b === event.target)); settingsContent.querySelectorAll('.sub-menu').forEach(p => p.classList.toggle('active-sub-menu', p.id === targetId)); }
+            
+            // --- Style & Appearance Functions ---
+            function applyShapeColor(starObject) { const targets = starObject ? [starObject.element] : stars.map(s => s.element).concat(customCursor).filter(Boolean); targets.forEach(el => { if (el.classList.contains('shape-ring')) { el.style.borderColor = shapeBaseColor; el.style.backgroundColor = 'transparent'; } else { el.style.backgroundColor = shapeBaseColor; } }); }
+            function applyBloomEffect(starObject) { const targets = starObject ? [starObject.element] : stars.map(s => s.element).concat(customCursor).filter(Boolean); const bloomColor = shapeBaseColor + 'aa'; targets.forEach(el => { el.style.boxShadow = (shapeBloomEnabled && bloomIntensity > 0) ? `0 0 ${bloomIntensity}px ${Math.max(1, Math.round(bloomIntensity / 8))}px ${bloomColor}` : 'none'; }); }
+            function applyShapeClass(starObject) { const targets = starObject ? [starObject] : stars.map(s => s).concat(customCursor).filter(Boolean); targets.forEach(el => { const domElement = el.element || el; const shape = (domElement === customCursor) ? cursorShapeClass : selectedShapeClass; possibleShapeClasses.forEach(cls => domElement.classList.remove(cls)); if (shape) domElement.classList.add(shape); }); }
+            function applyAnimationClass(starObject) { const targets = starObject ? [starObject] : stars; targets.forEach(star => { if (!star.element) return; possibleAnimClasses.forEach(cls => star.element.classList.remove(cls)); star.element.style.animationName = ''; if (selectedAnimClass && selectedAnimClass !== 'anim-none' && selectedAnimClass !== 'anim-bounce') { star.element.classList.add(selectedAnimClass); star.element.style.animationDuration = `${Math.random() * 3 + 2}s`; star.element.style.animationDelay = `${Math.random() * 5}s`; } }); }
+            function applyTableStyles() { document.documentElement.style.setProperty('--table-border-style', showTableBorders ? '1px solid #557' : 'none'); document.documentElement.style.setProperty('--table-font-size', `${tableFontSizePx}px`); document.documentElement.style.setProperty('--table-text-color', tableTextColor); document.documentElement.style.setProperty('--table-alt-row-bg', tableAltRowColorEnabled ? 'rgba(0,0,0,0.1)' : 'transparent'); }
+            function applyBackground() { body.style.background = `linear-gradient(to bottom, ${bgColorTop}, ${bgColorBottom})`; }
+            function updateMainTextStyle() { estrellaHeading.style.color = mainTextColor; estrellaHeading.style.textShadow = `0 0 10px ${mainTextColor}99, 0 0 20px ${mainTextColor}77, 0 0 35px ${mainTextGlowColor}`; }
+            function updateCustomCursorStyle() { if (!customCursor) return; customCursor.style.width = `${customCursorSize}px`; customCursor.style.height = `${customCursorSize}px`; applyShapeClass(customCursor); applyShapeColor({element: customCursor}); applyBloomEffect({element: customCursor}); }
+            
+            // --- Content Visibility & Layout (FIXED) ---
+            function updateMainTextVisibility() { if (showMainText) { applyContentPositions(); } else { headingWrapper.remove(); } }
+            function updateTableVisibility() { if (showTable) { applyContentPositions(); } else { tableWrapperElement.remove(); } }
+            function updateCursorVisibility() { customCursor.style.display = showCustomCursor ? 'block' : 'none'; body.style.cursor = showCustomCursor ? 'none' : 'auto'; }
+            function applyContentPositions() {
+                headingWrapper.remove(); tableWrapperElement.remove();
+                topContainer.style.alignItems = ''; bottomContainer.style.alignItems = '';
+
+                if (showMainText) {
+                    const targetContainer = (headingVerticalSelect.value === 'top') ? topContainer : bottomContainer;
+                    targetContainer.appendChild(headingWrapper);
+                    targetContainer.style.alignItems = headingAlignSelect.value === 'center' ? 'center' : (headingAlignSelect.value === 'right' ? 'flex-end' : 'flex-start');
+                }
+                if (showTable) {
+                    const targetContainer = (tableVerticalSelect.value === 'top') ? topContainer : bottomContainer;
+                    targetContainer.appendChild(tableWrapperElement);
+                    targetContainer.style.alignItems = tableAlignSelect.value === 'center' ? 'center' : (tableAlignSelect.value === 'right' ? 'flex-end' : 'flex-start');
+                }
+            }
+            
+            // --- Star & Particle Functions ---
+            function clearStars() { stars.forEach(star => star.element.remove()); stars = []; }
+            function createStars(count) {
+                const centerX = window.innerWidth / 2; const centerY = window.innerHeight / 2;
+                for (let i = 0; i < count; i++) {
+                    const element = document.createElement('div'); element.classList.add('visual-star');
+                    const size = minShapeSize + Math.random() * (maxShapeSize - minShapeSize);
+                    const star = { element, x: 0, y: 0, vx: 0, vy: 0, radius: size / 2, size: size };
+                    const speed = (Math.random() * 2 + 1) * movementSpeed;
+                    
+                    switch (spawnPattern) {
+                        case 'big-bang': { star.x = centerX; star.y = centerY; const angle = Math.random() * 2 * Math.PI; star.vx = Math.cos(angle) * speed; star.vy = Math.sin(angle) * speed; break; }
+                        case 'rainfall': { star.x = Math.random() * window.innerWidth; star.y = -star.radius * 2; star.vx = 0; star.vy = speed; break; }
+                        case 'fountain': { star.x = centerX + (Math.random() - 0.5) * 50; star.y = window.innerHeight + star.radius * 2; star.vx = (Math.random() - 0.5) * 2 * movementSpeed; star.vy = -speed; break; }
+                        case 'whirlpool': { star.x = centerX; star.y = centerY; const angle = Math.random() * 2 * Math.PI; const radialSpeed = speed * 0.5; const tangentialSpeed = speed * 1.5; star.vx = Math.cos(angle) * radialSpeed - Math.sin(angle) * tangentialSpeed; star.vy = Math.sin(angle) * radialSpeed + Math.cos(angle) * tangentialSpeed; break; }
+                        case 'corners': { const corner = Math.floor(Math.random() * 4); if (corner === 0) { star.x = -star.radius; star.y = -star.radius; } else if (corner === 1) { star.x = window.innerWidth + star.radius; star.y = -star.radius; } else if (corner === 2) { star.x = -star.radius; star.y = window.innerHeight + star.radius; } else { star.x = window.innerWidth + star.radius; star.y = window.innerHeight + star.radius; } const dx = centerX - star.x; const dy = centerY - star.y; const dist = Math.hypot(dx, dy) || 1; star.vx = (dx / dist) * speed; star.vy = (dy / dist) * speed; break; }
+                        case 'galaxy': { if (i < count / 2) { star.x = -star.radius; star.vx = speed; } else { star.x = window.innerWidth + star.radius; star.vx = -speed; } star.y = centerY + (Math.random() - 0.5) * (window.innerHeight * 0.4); star.vy = (Math.random() - 0.5) * 0.5 * movementSpeed; break; }
+                    }
+                    element.style.left = `${star.x}px`; element.style.top = `${star.y}px`;
+                    element.style.width = `${star.size}px`; element.style.height = `${star.size}px`;
+                    scene.appendChild(element); 
+                    stars.push(star);
+                    
+                    applyShapeClass(star); applyAnimationClass(star); applyShapeColor(star); applyBloomEffect(star);
+                }
+                updateStarAudioEffect();
+            }
+            function regenerateStars(newCount) { clearStars(); createStars(newCount); }
+
+            // --- Table & Graph Functions ---
+            function createEditableCell(content, isHeader = false) { const cell = document.createElement(isHeader ? 'th' : 'td'); const span = document.createElement('span'); span.className = 'cell-content'; span.contentEditable = 'true'; span.textContent = content; cell.appendChild(span); return cell; }
+            function addTableRow(values = []) { const tr = document.createElement('tr'); const colCount = dataThead.querySelector('tr')?.childElementCount || 1; for (let i = 0; i < colCount; i++) { tr.appendChild(createEditableCell(values[i] || '')); } dataTbody.appendChild(tr); }
+            function addTableColumn(header = 'Header') { dataThead.querySelector('tr').appendChild(createEditableCell(header, true)); dataTbody.querySelectorAll('tr').forEach(tr => tr.appendChild(createEditableCell(''))); }
+            function removeLastRow() { if (dataTbody.lastElementChild) dataTbody.lastElementChild.remove(); }
+            function removeLastColumn() { const colCount = dataThead.querySelector('tr')?.childElementCount; if (colCount > 1) { dataThead.querySelector('tr').lastElementChild.remove(); dataTbody.querySelectorAll('tr').forEach(tr => tr.lastElementChild.remove()); } }
+            function generateGraph() { const rows = Array.from(dataTbody.querySelectorAll('tr')); const data = rows.map(row => ({ label: row.cells[0]?.textContent.trim(), value: parseFloat(row.cells[1]?.textContent) })).filter(d => d.label && !isNaN(d.value) && d.value > 0); if (data.length === 0) { alert("No valid data to graph. Ensure the first column has labels and the second column has numbers."); return; } graphBox.innerHTML = ''; const maxValue = Math.max(...data.map(d => d.value)); data.forEach(d => { const barWrapper = document.createElement('div'); barWrapper.className = 'graph-bar-wrapper'; const bar = document.createElement('div'); bar.className = 'graph-bar'; const valueSpan = document.createElement('span'); valueSpan.className = 'graph-value'; valueSpan.textContent = d.value; const labelSpan = document.createElement('span'); labelSpan.className = 'graph-label'; labelSpan.textContent = d.label; bar.appendChild(valueSpan); barWrapper.appendChild(bar); barWrapper.appendChild(labelSpan); graphBox.appendChild(barWrapper); setTimeout(() => { bar.style.height = `${(d.value / maxValue) * 100}%`; }, 100); }); graphContainer.style.display = 'flex'; }
+            
+            // --- Audio Functions ---
+            async function setupAudio() { if (audioContext) return; try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); audioContext = new (window.AudioContext || window.webkitAudioContext)(); analyser = audioContext.createAnalyser(); microphone = audioContext.createMediaStreamSource(stream); analyser.fftSize = 256; dataArray = new Uint8Array(analyser.frequencyBinCount); microphone.connect(analyser); audioEnabled = true; audioButton.textContent = "Audio Active"; audioButton.disabled = true; } catch (err) { console.error("Mic Error:", err); alert("Mic access denied or failed."); audioButton.textContent = "Audio Error"; audioButton.disabled = true; } }
+            function getVolume() { if (!analyser) return 0; analyser.getByteFrequencyData(dataArray); let sum = 0; dataArray.forEach(v => sum += v); return Math.min(1.0, (sum / dataArray.length) / 128); }
+            function updateStarAudioEffect() { if (!audioEnabled || !stars.length) return; const volume = getVolume(); stars.forEach(star => { if (!star.element.style.transform.includes('scale')) star.element.style.transform = 'scale(1)'; const targetScale = micMinScale + (volume * (micMaxScale - micMinScale)); star.element.style.transform = star.element.style.transform.replace(/scale\([^)]+\)/, `scale(${targetScale.toFixed(3)})`); }); }
+            
+            // --- Event Handlers & Animation Loop ---
+            function handleMouseMove(event) { if (customCursor) { customCursor.style.left = `${event.clientX}px`; customCursor.style.top = `${event.clientY}px`; } if (!mouseTrailEnabled || settingsMenu.style.display === 'flex' || Date.now() - lastTrailTime < 30) return; lastTrailTime = Date.now();
+                const useImg = useImageForTrail && currentImageUrl; const p = useImg ? document.createElement('img') : document.createElement('div');
+                p.className = 'mouse-trail-particle';
+                if (useImg) { p.src = currentImageUrl; p.style.borderRadius = '4px'; } else { p.classList.add(selectedShapeClass); applyShapeColor({element: p}); if(p.classList.contains('shape-ring')) p.style.borderWidth = '1px'; }
+                p.style.width = `${trailParticleSize}px`; p.style.height = `${trailParticleSize}px`; p.style.left = `${event.clientX}px`; p.style.top = `${event.clientY}px`; p.style.animationDuration = `${trailFadeDurationSec}s`; body.appendChild(p); setTimeout(() => p.remove(), trailFadeDurationSec * 1000);
+            }
+            function createExplosion(x, y) { if (!clickExplosionEnabled) return; for (let i = 0; i < 15; i++) { const p = document.createElement('div'); p.className = 'click-explosion-particle'; p.classList.add(selectedShapeClass); applyShapeColor({element: p}); const pSize = Math.max(2, minShapeSize * clickExplosionSizeMultiplier); p.style.width = `${pSize}px`; p.style.height = `${pSize}px`; p.style.left = `${x}px`; p.style.top = `${y}px`; const angle = Math.random()*Math.PI*2; const distance = Math.random() * clickExplosionSpread + (clickExplosionSpread / 4); p.style.setProperty('--tx', `${Math.cos(angle)*distance}px`); p.style.setProperty('--ty', `${Math.sin(angle)*distance}px`); p.style.animationDuration = `${clickExplosionDurationMs}ms`; p.style.animationDelay = `${Math.random()*0.1}s`; body.appendChild(p); setTimeout(() => p.remove(), clickExplosionDurationMs); } }
+            
+            function resolveCollision(p1, p2) {
+                const dx = p1.x - p2.x; const dy = p1.y - p2.y;
+                const dist = Math.hypot(dx, dy);
+                if (dist < p1.radius + p2.radius) {
+                    const nx = dx / dist; const ny = dy / dist; const p = 2 * (p1.vx * nx + p1.vy * ny - p2.vx * nx - p2.vy * ny) / 2;
+                    p1.vx -= p * nx; p1.vy -= p * ny;
+                    p2.vx += p * nx; p2.vy += p * ny;
+                    const overlap = 0.51 * (p1.radius + p2.radius - dist);
+                    p1.x += overlap * nx; p1.y += overlap * ny; p2.x -= overlap * nx; p2.y -= overlap * ny;
+                    
+                    // Cap velocity to prevent runaway speeds (FIXED)
+                    p1.vx = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, p1.vx)); p1.vy = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, p1.vy));
+                    p2.vx = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, p2.vx)); p2.vy = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, p2.vy));
+                }
+            }
+
+            function animate() {
+                if (selectedAnimClass !== 'anim-none') {
+                    const bounds = scene.getBoundingClientRect();
+                    stars.forEach(star => {
+                        if (gravityEnabled) { star.vy += 0.05; }
+                        star.x += star.vx; star.y += star.vy;
+                        if (star.x < star.radius || star.x > bounds.width - star.radius) { star.vx *= -1; star.x = Math.max(star.radius, Math.min(star.x, bounds.width - star.radius)); }
+                        if (star.y < star.radius || star.y > bounds.height - star.radius) { star.vy *= -1; star.y = Math.max(star.radius, Math.min(star.y, bounds.height - star.radius)); }
+                    });
+                    for (let i = 0; i < stars.length; i++) { for (let j = i + 1; j < stars.length; j++) { resolveCollision(stars[i], stars[j]); } }
+                    stars.forEach(star => { star.element.style.left = `${star.x}px`; star.element.style.top = `${star.y}px`; });
+                }
+                updateStarAudioEffect();
+                requestAnimationFrame(animate);
+            }
+
+            // --- Initialization ---
+            function initialize() {
+                const headerRow = document.createElement('tr'); ['Task', 'Value'].forEach(text => headerRow.appendChild(createEditableCell(text, true))); dataThead.appendChild(headerRow); addTableRow(['Project A', '85']); addTableRow(['Project B', '60']);
+                showMainTextToggle.checked = showMainText; showTableToggle.checked = showTable;
+                headingVerticalSelect.value = 'top'; tableVerticalSelect.value = 'bottom'; headingAlignSelect.value = 'center'; tableAlignSelect.value = 'center';
+                applyContentPositions();
+                mainTextInput.value = mainTextContent; estrellaHeading.textContent = mainTextContent; textSizeSlider.value = estrellaTextSizeRem; textSizeValue.textContent = `${estrellaTextSizeRem.toFixed(1)} rem`; estrellaHeading.style.fontSize = `${estrellaTextSizeRem}rem`; mainTextColorInput.value = mainTextColor; mainTextGlowColorInput.value = mainTextGlowColor;
+                starCountSlider.value = numStars; starCountValue.textContent = numStars; spawnPatternSelect.value = spawnPattern; movementSpeedSlider.value = movementSpeed; movementSpeedValue.textContent = movementSpeed.toFixed(1); gravityToggle.checked = gravityEnabled; minShapeSizeSlider.value = minShapeSize; minShapeSizeValue.textContent = `${minShapeSize} px`; maxShapeSizeSlider.value = maxShapeSize; maxShapeSizeValue.textContent = `${maxShapeSize} px`; shapeColorInput.value = shapeBaseColor; starShapeSelect.value = selectedShapeClass; starAnimationSelect.value = selectedAnimClass; shapeBloomToggle.checked = shapeBloomEnabled; bloomIntensitySlider.value = bloomIntensity; bloomIntensityValue.textContent = bloomIntensity;
+                micMinScaleSlider.value = micMinScale; micMinScaleValue.textContent = micMinScale.toFixed(1); micMaxScaleSlider.value = micMaxScale; micMaxScaleValue.textContent = micMaxScale.toFixed(1);
+                imageSizeSlider.value = clickImageSize; imageSizeValue.textContent = `${clickImageSize} px`; fadeDurationSlider.value = clickImageFadeDurationSec; fadeDurationValue.textContent = `${clickImageFadeDurationSec.toFixed(1)} s`; imageShapeToggle.checked = clickImageIsCircular; clickExplosionToggle.checked = clickExplosionEnabled; persistImageToggle.checked = persistClickedImage;
+                explosionSizeSlider.value = clickExplosionSizeMultiplier; explosionSizeValue.textContent = `${clickExplosionSizeMultiplier.toFixed(1)}x`; explosionSpreadSlider.value = clickExplosionSpread; explosionSpreadValue.textContent = `${clickExplosionSpread} px`; explosionDurationSlider.value = clickExplosionDurationMs; explosionDurationValue.textContent = `${clickExplosionDurationMs} ms`;
+                showCustomCursorToggle.checked = showCustomCursor; updateCursorVisibility(); cursorShapeSelect.value = cursorShapeClass; cursorSizeSlider.value = customCursorSize; cursorSizeValue.textContent = `${customCursorSize} px`;
+                mouseTrailToggle.checked = mouseTrailEnabled; useImageForTrailToggle.checked = useImageForTrail; trailSizeSlider.value = trailParticleSize; trailSizeValue.textContent = `${trailParticleSize} px`; trailDurationSlider.value = trailFadeDurationSec; trailDurationValue.textContent = `${trailFadeDurationSec.toFixed(1)} s`;
+                showTableBordersToggle.checked = showTableBorders; tableFontSizeSlider.value = tableFontSizePx; tableFontSizeValue.textContent = `${tableFontSizePx} px`; tableTextColorInput.value = tableTextColor; tableAltRowToggle.checked = tableAltRowColorEnabled;
+                bgColorTopInput.value = bgColorTop; bgColorBottomInput.value = bgColorBottom;
+
+                updateMainTextStyle(); updateCustomCursorStyle(); applyTableStyles(); applyBackground();
+                createStars(numStars); animate();
+            }
+
+            // --- Event Listeners ---
+            document.addEventListener('keydown', e => { if (e.key === 'Escape') toggleSettingsMenu(); });
+            settingsTabsContainer.addEventListener('click', switchSettingTab);
+            body.addEventListener('mousemove', handleMouseMove);
+            body.addEventListener('click', (event) => {
+                const isUIElement = (settingsMenu && settingsMenu.contains(event.target)) || (tableContainer && tableContainer.contains(event.target)) || (graphContainer.style.display === 'flex' && graphContainer.contains(event.target)); if (isUIElement) return;
+                createExplosion(event.clientX, event.clientY);
+                if (currentImageUrl) {
+                    if (persistClickedImage && currentPersistentImage) { currentPersistentImage.remove(); currentPersistentImage = null; return; }
+                    const lowerUrl = currentImageUrl.toLowerCase(); if (!lowerUrl.endsWith('.jpg') && !lowerUrl.endsWith('.png') && !lowerUrl.endsWith('.gif')) { return; }
+                    const img = document.createElement('img'); img.src = currentImageUrl; const offset = clickImageSize / 2; img.style.left = `${event.clientX - offset}px`; img.style.top = `${event.clientY - offset}px`; img.style.width = `${clickImageSize}px`; img.style.height = `${clickImageSize}px`;
+                    img.onerror = () => { if (img.parentNode) img.remove(); if (img === currentPersistentImage) currentPersistentImage = null; };
+                    if (persistClickedImage) { img.style.position = 'fixed'; img.style.objectFit = 'cover'; img.style.boxShadow = '0 0 12px rgba(255, 255, 255, 0.6)'; img.style.zIndex = '100'; img.style.opacity = '1'; img.style.borderRadius = clickImageIsCircular ? '50%' : '8px'; currentPersistentImage = img; document.body.appendChild(img);
+                    } else { img.classList.add('click-image'); if (clickImageIsCircular) img.classList.add('circular'); img.style.position = 'fixed'; img.style.animationDuration = `${clickImageFadeDurationSec}s`; document.body.appendChild(img); setTimeout(() => { if (img.parentNode) img.remove(); }, clickImageFadeDurationSec * 1000); currentPersistentImage = null; }
+                }
+            });
+            audioButton.addEventListener('click', setupAudio); addRowBtn.addEventListener('click', () => addTableRow()); removeRowBtn.addEventListener('click', removeLastRow); addColBtn.addEventListener('click', () => addTableColumn()); removeColBtn.addEventListener('click', removeLastColumn); generateGraphBtn.addEventListener('click', generateGraph); closeGraphBtn.addEventListener('click', () => graphContainer.style.display = 'none');
+            // Settings Controls
+            showMainTextToggle.addEventListener('change', e => { showMainText = e.target.checked; updateMainTextVisibility(); });
+            showTableToggle.addEventListener('change', e => { showTable = e.target.checked; updateTableVisibility(); });
+            [headingVerticalSelect, headingAlignSelect, tableVerticalSelect, tableAlignSelect].forEach(el => el.addEventListener('change', applyContentPositions));
+            mainTextInput.addEventListener('input', e => { mainTextContent = e.target.value; estrellaHeading.textContent = mainTextContent; });
+            textSizeSlider.addEventListener('input', e => { estrellaTextSizeRem = parseFloat(e.target.value); textSizeValue.textContent = `${estrellaTextSizeRem.toFixed(1)} rem`; estrellaHeading.style.fontSize = `${estrellaTextSizeRem}rem`; });
+            mainTextColorInput.addEventListener('input', e => { mainTextColor = e.target.value; updateMainTextStyle(); });
+            mainTextGlowColorInput.addEventListener('input', e => { mainTextGlowColor = e.target.value; updateMainTextStyle(); });
+            starCountSlider.addEventListener('input', e => { numStars = parseInt(e.target.value, 10); starCountValue.textContent = numStars; regenerateStars(numStars); });
+            spawnPatternSelect.addEventListener('change', e => { spawnPattern = e.target.value; regenerateStars(numStars); });
+            movementSpeedSlider.addEventListener('input', e => { movementSpeed = parseFloat(e.target.value); movementSpeedValue.textContent = movementSpeed.toFixed(1); regenerateStars(numStars); });
+            gravityToggle.addEventListener('change', e => { gravityEnabled = e.target.checked; });
+            minShapeSizeSlider.addEventListener('input', e => { minShapeSize = parseInt(e.target.value, 10); if (minShapeSize > maxShapeSize) { maxShapeSize = minShapeSize; maxShapeSizeSlider.value = maxShapeSize; maxShapeSizeValue.textContent = `${maxShapeSize} px`; } minShapeSizeValue.textContent = `${minShapeSize} px`; regenerateStars(numStars); });
+            maxShapeSizeSlider.addEventListener('input', e => { maxShapeSize = parseInt(e.target.value, 10); if (maxShapeSize < minShapeSize) { minShapeSize = maxShapeSize; minShapeSizeSlider.value = minShapeSize; minShapeSizeValue.textContent = `${minShapeSize} px`; } maxShapeSizeValue.textContent = `${maxShapeSize} px`; regenerateStars(numStars); });
+            shapeColorInput.addEventListener('input', e => { shapeBaseColor = e.target.value; applyShapeColor(); applyBloomEffect(); });
+            starShapeSelect.addEventListener('change', e => { selectedShapeClass = e.target.value; applyShapeClass(); });
+            starAnimationSelect.addEventListener('change', e => { selectedAnimClass = e.target.value; applyAnimationClass(); });
+            shapeBloomToggle.addEventListener('change', e => { shapeBloomEnabled = e.target.checked; applyBloomEffect(); });
+            bloomIntensitySlider.addEventListener('input', e => { bloomIntensity = parseInt(e.target.value, 10); bloomIntensityValue.textContent = bloomIntensity; if(shapeBloomEnabled) applyBloomEffect(); });
+            clickExplosionToggle.addEventListener('change', e => { clickExplosionEnabled = e.target.checked; });
+            imageUrlInput.addEventListener('input', (e) => { currentImageUrl = e.target.value.trim(); });
+            imageSizeSlider.addEventListener('input', (e) => { clickImageSize = parseInt(e.target.value, 10); imageSizeValue.textContent = `${clickImageSize} px`; });
+            fadeDurationSlider.addEventListener('input', (e) => { clickImageFadeDurationSec = parseFloat(e.target.value); fadeDurationValue.textContent = `${clickImageFadeDurationSec.toFixed(1)} s`; });
+            imageShapeToggle.addEventListener('change', e => { clickImageIsCircular = e.target.checked; });
+            persistImageToggle.addEventListener('change', e => { persistClickedImage = e.target.checked; if (!persistClickedImage && currentPersistentImage) { currentPersistentImage.remove(); currentPersistentImage = null; } });
+            explosionSizeSlider.addEventListener('input', e => { clickExplosionSizeMultiplier = parseFloat(e.target.value); explosionSizeValue.textContent = `${clickExplosionSizeMultiplier.toFixed(1)}x`; });
+            explosionSpreadSlider.addEventListener('input', e => { clickExplosionSpread = parseInt(e.target.value, 10); explosionSpreadValue.textContent = `${clickExplosionSpread} px`; });
+            explosionDurationSlider.addEventListener('input', e => { clickExplosionDurationMs = parseInt(e.target.value, 10); explosionDurationValue.textContent = `${clickExplosionDurationMs} ms`; });
+            showCustomCursorToggle.addEventListener('change', e => { showCustomCursor = e.target.checked; updateCursorVisibility(); });
+            cursorShapeSelect.addEventListener('change', e => { cursorShapeClass = e.target.value; updateCustomCursorStyle(); });
+            cursorSizeSlider.addEventListener('input', e => { customCursorSize = parseInt(e.target.value, 10); cursorSizeValue.textContent = `${customCursorSize} px`; updateCustomCursorStyle(); });
+            mouseTrailToggle.addEventListener('change', e => { mouseTrailEnabled = e.target.checked; });
+            useImageForTrailToggle.addEventListener('change', e => { useImageForTrail = e.target.checked; });
+            trailSizeSlider.addEventListener('input', e => { trailParticleSize = parseInt(e.target.value, 10); trailSizeValue.textContent = `${trailParticleSize} px`; });
+            trailDurationSlider.addEventListener('input', e => { trailFadeDurationSec = parseFloat(e.target.value); trailDurationValue.textContent = `${trailFadeDurationSec.toFixed(1)} s`; });
+            showTableBordersToggle.addEventListener('change', e => { showTableBorders = e.target.checked; applyTableStyles(); });
+            tableFontSizeSlider.addEventListener('input', e => { tableFontSizePx = parseInt(e.target.value, 10); tableFontSizeValue.textContent = `${tableFontSizePx} px`; applyTableStyles(); });
+            tableTextColorInput.addEventListener('input', e => { tableTextColor = e.target.value; applyTableStyles(); });
+            tableAltRowToggle.addEventListener('change', e => { tableAltRowColorEnabled = e.target.checked; applyTableStyles(); });
+            bgColorTopInput.addEventListener('input', e => { bgColorTop = e.target.value; applyBackground(); });
+            bgColorBottomInput.addEventListener('input', e => { bgColorBottom = e.target.value; applyBackground(); });
+            
+            initialize();
+        });
+    </script>
+</body>
+</html>
